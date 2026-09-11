@@ -13,8 +13,8 @@ android {
         applicationId = "com.azurpilot.mobile"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
     }
 
     buildTypes {
@@ -101,5 +101,9 @@ tasks.register<JavaExec>("unitTest") {
     val testTask = tasks.named<Test>("testDebugUnitTest")
     classpath = files({ testTask.get().classpath })
     mainClass.set("org.junit.runner.JUnitCore")
-    args = listOf("com.azurpilot.mobile.data.ConfigCacheTest")
+    // 新增测试类时要手动加到这里 —— JUnitCore 不会自己发现
+    args = listOf(
+        "com.azurpilot.mobile.data.ConfigCacheTest",
+        "com.azurpilot.mobile.data.UpdateCheckerTest",
+    )
 }

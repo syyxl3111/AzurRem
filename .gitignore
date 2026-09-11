@@ -10,6 +10,14 @@
 # 不要塞进 git 历史 —— 二进制一旦提交就永远留在历史里，仓库会迅速膨胀。
 dist/
 
+# .release/ 是发版前临时放「即将上传的资产」的地方（把 APK/exe 改成干净文件名，
+# 因为 gh release create 用的就是文件名）。同样是 13MB 级二进制，
+# **只用来传给 gh，不进仓库**。
+#
+# ⚠️ 这里一开始漏了，导致 40MB 二进制被提交并推送过一次，
+#    靠 git commit --amend + force push 才清干净。加新目录时记得核对。
+.release/
+
 # PyInstaller 的中间产物（bridge/build/AzurRemBridge.pkg 一个就 13MB）
 bridge/build/
 

@@ -161,6 +161,8 @@ fun AppRoot(vm: AppViewModel) {
                                 onOpenLogs = vm::openLogs,
                                 onNotify = vm::notify,
                                 onReprefetch = vm::reprefetchAll,
+                                onCheckUpdate = vm::checkForUpdate,
+                                onDownloadUpdate = vm::downloadUpdate,
                                 insets = insets,
                             )
                         }

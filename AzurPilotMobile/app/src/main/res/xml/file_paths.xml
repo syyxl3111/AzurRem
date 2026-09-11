@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 的可见范围。
+
+  **只**开放 filesDir/updates 这一个子目录 —— 系统安装器需要读那里的 APK，
+  而它跑在另一个进程里。千万不要图省事写 <root-path>（等于把整个私有目录
+  暴露给任何拿到 URI 的应用）。
+-->
+<paths>
+    <files-path
+        name="updates"
+        path="updates/" />
+</paths>

@@ -228,6 +228,46 @@ D:\Tools\AzurPilot\.venv\Scripts\python.exe bridge\verify_commission_parity.py
 
 ---
 
+## 应用内更新
+
+**设置 → 关于 → 版本**，点一下就检查有没有新版。有的话直接下载 APK 并交给系统安装程序，
+不用手动去 GitHub 找。
+
+数据源是本仓库的 GitHub Releases：
+
+```
+GET https://api.github.com/repos/syyxl3111/AzurRem/releases/latest
+```
+
+这个接口**匿名可访问**（实测 HTTP 200），所以 App 不需要任何密钥、也不需要 token。
+
+### 发新版时的约定（不遵守就检查不到）
+
+1. **tag 用 `v<版本号>`**，例如 `v1.0.3`。解析时会剥掉 `v`，写成 `1.0.3` 也认
+2. **APK 作为 Release 资产上传，文件名以 `.apk` 结尾**。
+   有多个 `.apk` 资产时取第一个，所以**一个 Release 只放一个 APK**
+3. 版本号用点分数字。比较是**逐段按数值**比的，不是字符串比 ——
+   否则 `1.0.10` 会被判成比 `1.0.9` 旧（这条有单元测试钉着）
+
+发版流程：
+
+```powershell
+cd AzurPilotMobile
+# 1. 改 app/build.gradle.kts 的 versionCode / versionName
+.\gradlew.bat assembleDebug
+# 2. 把 APK 传成 Release 资产
+gh release create v1.0.3 "AzurRem-1.0.3.apk" --title "..." --notes "..."
+```
+
+> ⚠️ **APK 是 debug 签名。** 同一台机器上构建的后续版本可以直接覆盖升级；
+> 如果换了构建机器（或弄丢了 `~/.android/debug.keystore`），
+> 升级会因为签名不一致失败，用户需要先卸载旧版。
+
+> ⚠️ **从 1.0.2 升到 1.0.3 需要手动装一次** —— 1.0.2 里还没有更新检查功能。
+> 装上 1.0.3 之后，以后就都能在 App 内更新了。
+
+---
+
 ## 构建
 
 ### Android App

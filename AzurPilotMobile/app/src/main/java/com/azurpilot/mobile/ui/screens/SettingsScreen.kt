@@ -64,6 +64,8 @@ fun SettingsScreen(
     onOpenLogs: () -> Unit,
     onNotify: (String) -> Unit,
     onReprefetch: () -> Unit,
+    onCheckUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
     insets: ScreenInsets,
     modifier: Modifier = Modifier,
 ) {
@@ -270,14 +272,14 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(14.dp),
             ) {
                 Column(Modifier.fillMaxWidth()) {
-                    // ⚠️ 这一行就是**以后接「点击检查更新」的入口**。
-                    // 现在点了给一条轻提示，不做任何网络请求。
+                    // 检查更新：查本项目的 GitHub Releases，有新版就下 APK 交给系统安装器
                     NavRow(
                         title = "版本",
-                        value = versionName,
+                        value = if (state.updateChecking) "检查中…" else versionName,
                         icon = null,
-                        onClick = { onNotify("已是最新版本 · $versionName") },
+                        onClick = onCheckUpdate,
                     )
+                    UpdateStatus(state, onDownload = onDownloadUpdate)
                 }
             }
         }
@@ -390,6 +392,90 @@ private fun NavRow(
         )
     }
 }
+
+/**
+ * 版本行下面那块状态区。
+ *
+ * 四种状态，**互斥**，所以用 when 而不是叠一堆 if：
+ *   下载中（进度条）→ 有新版本（说明 + 下载按钮）→ 一句话结果 → 不显示
+ *
+ * 「不显示」是缺省态：没点过检查更新之前，这里一个字都不该占地方。
+ */
+@Composable
+private fun UpdateStatus(
+    state: AppUiState,
+    onDownload: () -> Unit,
+) {
+    val t = AppTheme.acrylic
+    val progress = state.updateProgress
+
+    when {
+        progress != null -> {
+            val (got, total) = progress
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Text(
+                    text = if (total > 0) {
+                        "正在下载 ${megabytes(got)} / ${megabytes(total)} MB"
+                    } else {
+                        "正在下载 ${megabytes(got)} MB"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = t.textSecondary,
+                )
+                Spacer(Modifier.height(8.dp))
+                // total 未知时用**不确定态**（来回滚动那条），不要假装是 0%。
+                // Material3 里这两种是两个不同的重载，只能分支写。
+                val barModifier = Modifier.fillMaxWidth().height(3.dp)
+                if (total > 0) {
+                    LinearProgressIndicator(
+                        progress = { (got.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
+                        modifier = barModifier,
+                        color = t.accent,
+                        trackColor = t.track,
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = barModifier,
+                        color = t.accent,
+                        trackColor = t.track,
+                    )
+                }
+            }
+        }
+
+        state.updateAvailable != null -> {
+            val info = state.updateAvailable
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Text(
+                    text = "发现新版本 ${info.version}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = t.textPrimary,
+                )
+                if (info.apkSize > 0) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = "APK 体积 ${megabytes(info.apkSize)} MB · 下载后交给系统安装程序",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = t.textTertiary,
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                ChipButton(text = "下载并安装", filled = true) { onDownload() }
+            }
+        }
+
+        state.updateMessage != null -> Text(
+            text = state.updateMessage,
+            style = MaterialTheme.typography.labelSmall,
+            color = t.textTertiary,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        )
+    }
+}
+
+/** 字节 → MB，保留一位小数 */
+private fun megabytes(bytes: Long): String =
+    String.format(java.util.Locale.US, "%.1f", bytes / 1024.0 / 1024.0)
 
 /** 一行里的分段选择 */
 @Composable

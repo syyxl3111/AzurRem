@@ -20,6 +20,7 @@ import com.azurpilot.mobile.data.ShipExpStats
 import com.azurpilot.mobile.data.TaskConfig
 import com.azurpilot.mobile.data.TaskTree
 import com.azurpilot.mobile.data.TrendPoint
+import com.azurpilot.mobile.data.UpdateChecker
 import com.azurpilot.mobile.data.mergeLogs
 import org.json.JSONObject
 import kotlinx.coroutines.Job
@@ -174,6 +175,17 @@ data class AppUiState(
     val historySamples: Int = 0,
     val historyLoading: Boolean = false,
     val historyError: String? = null,
+
+    // ── 应用内更新（数据源是本项目的 GitHub Releases）──
+    /** 当前安装的版本号，从 PackageManager 读 */
+    val appVersion: String = "",
+    val updateChecking: Boolean = false,
+    /** 查到的新版本；null = 没有新版或还没查过 */
+    val updateAvailable: UpdateChecker.UpdateInfo? = null,
+    /** 检查结果的一句话说明（已是最新 / 查不到的原因） */
+    val updateMessage: String? = null,
+    /** 下载中：已收字节 / 总字节（总未知时为 0） */
+    val updateProgress: Pair<Long, Long>? = null,
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -1001,6 +1013,153 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
         }
+    }
+
+    // ─────────────────────────────────────────────────────
+    // 应用内更新
+    // ─────────────────────────────────────────────────────
+
+    /**
+     * 当前安装的版本号。
+     *
+     * 从 PackageManager 读**实际安装的**值，而不是写死一个字符串 ——
+     * 写死的话改了 build.gradle 忘了改代码，更新检查就会一直判错。
+     */
+    private fun installedVersion(): String {
+        val ctx = getApplication<Application>()
+        return runCatching {
+            ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
+        }.getOrNull().orEmpty()
+    }
+
+    /** 检查 GitHub 上有没有新版本（匿名可查，不需要 token） */
+    fun checkForUpdate() {
+        if (_ui.value.updateChecking) return
+        val current = installedVersion()
+        _ui.update {
+            it.copy(
+                appVersion = current,
+                updateChecking = true,
+                updateMessage = null,
+                updateAvailable = null,
+            )
+        }
+
+        viewModelScope.launch {
+            val result = UpdateChecker().check(current)
+            _ui.update {
+                when (result) {
+                    is UpdateChecker.Result.Available -> it.copy(
+                        updateChecking = false,
+                        updateAvailable = result.info,
+                        updateMessage = "有新版 ${result.info.version}",
+                    )
+
+                    is UpdateChecker.Result.UpToDate -> it.copy(
+                        updateChecking = false,
+                        updateAvailable = null,
+                        updateMessage = "已是最新版本（$current）",
+                    )
+
+                    is UpdateChecker.Result.Failed -> it.copy(
+                        updateChecking = false,
+                        updateAvailable = null,
+                        updateMessage = result.reason,
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * 下载新版 APK。
+     *
+     * 下载完**交给系统安装器**，不在应用内自己装 —— 自己装要么需要 root，
+     * 要么要跟 PackageInstaller 的会话机制缠斗，而系统安装器自带
+     * 签名校验、权限确认和「未知来源」引导，出问题时的提示也标准。
+     *
+     * 界面上拿到的 APK 路径会在 [installDownloadedApk] 里用。
+     */
+    fun downloadUpdate() {
+        val info = _ui.value.updateAvailable ?: return
+        if (_ui.value.updateProgress != null) return      // 已经在下了
+
+        val ctx = getApplication<Application>()
+        val dir = java.io.File(ctx.filesDir, "updates")
+
+        viewModelScope.launch {
+            _ui.update { it.copy(updateProgress = 0L to info.apkSize) }
+            runCatching {
+                // 进度回调用的是同步 IO 线程，这里只在整数百分比变化时更新状态，
+                // 否则 13MB 会触发上千次 StateFlow 更新，界面反而卡
+                var lastPct = -1
+                UpdateChecker().download(info, dir) { received, total ->
+                    val pct = if (total > 0) ((received * 100) / total).toInt() else -1
+                    if (pct != lastPct) {
+                        lastPct = pct
+                        _ui.value = _ui.value.copy(updateProgress = received to total)
+                    }
+                }
+            }.fold(
+                onSuccess = { file ->
+                    _ui.update {
+                        it.copy(
+                            updateProgress = null,
+                            updateMessage = "下载完成，正在打开安装程序…",
+                        )
+                    }
+                    installDownloadedApk(file)
+                },
+                onFailure = { e ->
+                    _ui.update {
+                        it.copy(
+                            updateProgress = null,
+                            updateMessage = e.message?.takeIf { m -> m.isNotBlank() }
+                                ?: "下载失败",
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    /**
+     * 把下载好的 APK 交给系统安装器。
+     *
+     * 必须走 FileProvider 的 content:// —— Android 7.0 起把 file:// 直接传给
+     * 别的应用会抛 FileUriExposedException（安装器是另一个进程，正属于这种情况）。
+     */
+    private fun installDownloadedApk(file: java.io.File) {
+        val ctx = getApplication<Application>()
+        runCatching {
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                ctx,
+                "${ctx.packageName}.fileprovider",
+                file,
+            )
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(
+                    uri,
+                    "application/vnd.android.package-archive",
+                )
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            ctx.startActivity(intent)
+        }.onFailure { e ->
+            // 最常见的是用户没给「安装未知应用」权限。系统那条路会自己弹引导，
+            // 但如果我们连 Activity 都拉不起来，就得在这里说清楚。
+            _ui.update {
+                it.copy(
+                    updateMessage = "打不开安装程序：${e.message ?: "未知原因"}。" +
+                        "请到系统设置里允许本应用「安装未知应用」后重试。",
+                )
+            }
+        }
+    }
+
+    fun dismissUpdate() = _ui.update {
+        it.copy(updateAvailable = null, updateMessage = null, updateProgress = null)
     }
 
     fun updateServerUrl(url: String) {        settings.serverUrl = url
