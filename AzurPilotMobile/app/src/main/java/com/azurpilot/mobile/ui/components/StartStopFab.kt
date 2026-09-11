@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,7 +36,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -51,12 +49,10 @@ import androidx.compose.ui.unit.dp
 import com.azurpilot.mobile.data.RunState
 import com.azurpilot.mobile.ui.icons.AppIcons
 import com.azurpilot.mobile.ui.theme.AppTheme
-import com.azurpilot.mobile.ui.theme.PilotBlue
-import com.azurpilot.mobile.ui.theme.PilotBlueDeep
-import com.azurpilot.mobile.ui.theme.PilotBlueLight
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.Icon
 
 /**
  * 按钮直径。原来是 62dp，整体**缩小 25%**。
@@ -216,7 +212,7 @@ fun StartStopFab(
 
 @Composable
 private fun FabVisual(running: Boolean, stateCode: Int, busy: Boolean) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
 
     // 外圈弧线：运行中时绕着按钮转。
     // 配色沿用主蓝而不是参考图里的绿 —— 绿在这个 App 里是「成功」的语义
@@ -247,13 +243,13 @@ private fun FabVisual(running: Boolean, stateCode: Int, busy: Boolean) {
                 Modifier
                     .requiredSize(FAB_GLOW)
                     .clip(CircleShape)
-                    .background(PilotBlue.copy(alpha = 0.10f)),
+                    .background(t.accent.copy(alpha = 0.10f)),
             )
             Canvas(Modifier.requiredSize(FAB_RING)) {
                 val stroke = FAB_RING_STROKE.toPx()
                 val inset = stroke / 2f
                 drawArc(
-                    color = PilotBlueLight.copy(alpha = 0.95f),
+                    color = t.accent.copy(alpha = 0.95f),
                     startAngle = spin,
                     sweepAngle = 78f,
                     useCenter = false,
@@ -271,13 +267,11 @@ private fun FabVisual(running: Boolean, stateCode: Int, busy: Boolean) {
                     elevation = 12.dp,
                     shape = CircleShape,
                     clip = false,
-                    spotColor = PilotBlue.copy(alpha = 0.55f),
-                    ambientColor = PilotBlue.copy(alpha = 0.30f),
+                    spotColor = t.accent.copy(alpha = 0.55f),
+                    ambientColor = t.accent.copy(alpha = 0.30f),
                 )
                 .clip(CircleShape)
-                .background(
-                    Brush.verticalGradient(listOf(PilotBlueLight, PilotBlueDeep)),
-                )
+                .background(t.accent)
                 .alpha(if (busy) 0.55f else 1f),
             contentAlignment = Alignment.Center,
         ) {

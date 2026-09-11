@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -17,17 +16,14 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.azurpilot.mobile.ui.components.AcrylicTabBar
 import com.azurpilot.mobile.ui.components.ModalConfirmDialog
 import com.azurpilot.mobile.ui.components.StartStopFab
-import com.azurpilot.mobile.ui.components.TAB_ITEM_HEIGHT
 import com.azurpilot.mobile.ui.components.ToastBar
+import com.azurpilot.mobile.ui.icons.AppIcons
 import com.azurpilot.mobile.ui.screens.ConfigScreen
 import com.azurpilot.mobile.ui.screens.HomeScreen
 import com.azurpilot.mobile.ui.screens.LogsScreen
@@ -36,12 +32,10 @@ import com.azurpilot.mobile.ui.screens.StatsScreen
 import com.azurpilot.mobile.ui.screens.TaskConfigScreen
 import com.azurpilot.mobile.ui.screens.TasksScreen
 import com.azurpilot.mobile.ui.theme.AppTheme
-import com.azurpilot.mobile.ui.theme.ambientBackground
+import top.yukonga.miuix.kmp.basic.NavigationBar
+import top.yukonga.miuix.kmp.basic.NavigationBarItem
 
-// Tab 栏高度 = AcrylicTabBar 的项高 + 容器上下 padding(5+5)。
-// 用共享常量而不是各写各的，否则改一处忘一处（原来是 52 + 5×2 = 62 手工对上的）。
-private val TAB_BAR_HEIGHT = TAB_ITEM_HEIGHT + 10.dp
-private val TAB_BAR_GAP = 10.dp
+private val TAB_BAR_HEIGHT = 64.dp
 private val SCREEN_PADDING = 14.dp
 
 /** 吸顶状态卡的高度（含下方间隔），FAB 的可拖动范围要避开它 */
@@ -58,7 +52,7 @@ fun AppRoot(vm: AppViewModel) {
     }
 
     AppTheme(darkTheme = dark) {
-        val t = AppTheme.acrylic
+        val t = AppTheme.colors
 
         // ── 状态栏 / 导航栏图标跟随**应用内**的主题 ──
         //
@@ -84,7 +78,7 @@ fun AppRoot(vm: AppViewModel) {
         val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val statusInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-        val bottomReserved = TAB_BAR_HEIGHT + TAB_BAR_GAP * 2 + navInset
+        val bottomReserved = TAB_BAR_HEIGHT + navInset + 16.dp
 
         val insets = ScreenInsets(
             horizontal = SCREEN_PADDING,
@@ -95,7 +89,7 @@ fun AppRoot(vm: AppViewModel) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .ambientBackground(t),
+                .background(t.background),
         ) {
             when (val route = state.route) {
                 // ── 子页面：全屏压栈，盖住 Tab 栏 ──
@@ -186,37 +180,44 @@ fun AppRoot(vm: AppViewModel) {
                         )
                     }
 
-                    // ── 底部渐隐幕 ──
-                    // 内容滚到 Tab 栏之前先淡出。没有这层的话，因为不做真模糊，
-                    // Tab 栏会透出下面的文字/数字，非常脏。
-                    Box(
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(bottomReserved + 26.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        t.bgBottom.copy(alpha = 0.92f),
-                                        t.bgBottom,
-                                    ),
-                                ),
-                            ),
-                    )
-
-                    AcrylicTabBar(
-                        current = state.tab,
-                        onSelect = vm::selectTab,
+                    NavigationBar(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(
-                                start = SCREEN_PADDING + 2.dp,
-                                end = SCREEN_PADDING + 2.dp,
-                                bottom = navInset + TAB_BAR_GAP,
-                            )
                             .fillMaxWidth(),
-                    )
+                        color = t.surface,
+                        showDivider = true,
+                    ) {
+                        NavigationBarItem(
+                            selected = state.tab == Tab.Home,
+                            onClick = { vm.selectTab(Tab.Home) },
+                            icon = AppIcons.House,
+                            label = "主页",
+                        )
+                        NavigationBarItem(
+                            selected = state.tab == Tab.Tasks,
+                            onClick = { vm.selectTab(Tab.Tasks) },
+                            icon = AppIcons.Checklist,
+                            label = "任务",
+                        )
+                        NavigationBarItem(
+                            selected = state.tab == Tab.Config,
+                            onClick = { vm.selectTab(Tab.Config) },
+                            icon = AppIcons.Sliders,
+                            label = "配置",
+                        )
+                        NavigationBarItem(
+                            selected = state.tab == Tab.Stats,
+                            onClick = { vm.selectTab(Tab.Stats) },
+                            icon = AppIcons.Chart,
+                            label = "统计",
+                        )
+                        NavigationBarItem(
+                            selected = state.tab == Tab.Settings,
+                            onClick = { vm.selectTab(Tab.Settings) },
+                            icon = AppIcons.Gear,
+                            label = "设置",
+                        )
+                    }
 
                     if (state.confirmStop) {
                         ModalConfirmDialog(

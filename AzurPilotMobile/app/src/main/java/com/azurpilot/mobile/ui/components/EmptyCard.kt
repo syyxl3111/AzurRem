@@ -12,9 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -23,8 +20,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
+import com.azurpilot.mobile.ui.theme.AppTypography
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.MiuixSurface
+import top.yukonga.miuix.kmp.basic.Text
 
 /** 通用空态 / 异常态卡片 */
 @Composable
@@ -33,10 +32,10 @@ fun EmptyCard(
     detail: String,
     modifier: Modifier = Modifier,
 ) {
-    val t = AppTheme.acrylic
-    AcrylicSurface(
+    val t = AppTheme.colors
+    MiuixSurface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        cornerRadius = 14.dp,
     ) {
         Column(
             Modifier
@@ -46,14 +45,14 @@ fun EmptyCard(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall,
+                style = AppTypography.titleSmall,
                 color = t.textPrimary,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(6.dp))
             Text(
                 text = detail,
-                style = MaterialTheme.typography.bodySmall,
+                style = AppTypography.bodySmall,
                 color = t.textSecondary,
                 textAlign = TextAlign.Center,
             )
@@ -65,10 +64,9 @@ fun EmptyCard(
  * 骨架屏占位块 —— 首次加载时用，避免先闪一个 0 再跳成真实值。
  */
 @Composable
-fun AcrylicSurfacePlaceholder(
+fun MiuixSurfacePlaceholder(
     height: Dp,
     modifier: Modifier = Modifier,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(14.dp),
 ) {
     val transition = rememberInfiniteTransition(label = "skeleton")
     val alpha by transition.animateFloat(
@@ -80,13 +78,12 @@ fun AcrylicSurfacePlaceholder(
         ),
         label = "skeletonAlpha",
     )
-    AcrylicSurface(
+    MiuixSurface(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
             .alpha(alpha),
-        shape = shape,
-        elevation = 0.dp,
+        cornerRadius = 14.dp,
     ) {
         Box(Modifier.fillMaxSize())
     }

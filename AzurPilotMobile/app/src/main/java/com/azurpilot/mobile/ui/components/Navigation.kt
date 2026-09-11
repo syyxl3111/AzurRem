@@ -5,12 +5,10 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,10 +18,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -35,15 +29,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.azurpilot.mobile.ui.ScreenInsets
 import com.azurpilot.mobile.ui.icons.AppIcons
+import com.azurpilot.mobile.ui.theme.AppTypography
 import com.azurpilot.mobile.ui.theme.AppTheme
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 
 /** 触发返回的拖拽比例（拖过屏幕宽度 1/3 就回退） */
 private const val BACK_THRESHOLD = 0.33f
@@ -156,54 +153,33 @@ fun SubPageScaffold(
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(start = insets.horizontal, end = insets.horizontal, top = insets.top),
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
-                Icon(
-                    imageVector = AppIcons.ChevronLeft,
-                    contentDescription = "返回",
-                    tint = t.accent,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-            Spacer(Modifier.width(2.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = t.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (!subtitle.isNullOrBlank()) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = t.textTertiary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+    Column(modifier = modifier.fillMaxSize()) {
+        SmallTopAppBar(
+            title = title,
+            subtitle = subtitle.orEmpty(),
+            color = t.surface,
+            titleColor = t.textPrimary,
+            subtitleColor = t.textTertiary,
+            navigationIcon = {
+                IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
+                    Icon(
+                        imageVector = AppIcons.ChevronLeft,
+                        contentDescription = "返回",
+                        tint = t.accent,
+                        modifier = Modifier.size(24.dp),
                     )
                 }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                content = actions,
-            )
-        }
-
-        content()
+            },
+            actions = actions,
+        )
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(start = insets.horizontal, end = insets.horizontal),
+            content = content,
+        )
     }
 }
 

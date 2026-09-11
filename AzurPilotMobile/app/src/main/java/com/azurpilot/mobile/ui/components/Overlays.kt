@@ -2,7 +2,6 @@ package com.azurpilot.mobile.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,20 +23,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -50,15 +40,18 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import android.content.Context
 import android.view.accessibility.AccessibilityManager
 import com.azurpilot.mobile.ui.ToastTone
 import com.azurpilot.mobile.ui.icons.AppIcons
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.AppTypography
 import kotlinx.coroutines.delay
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * 顶部轻提示 —— **胶囊**（类似 iOS 灵动岛那类）。
@@ -87,7 +80,7 @@ fun ToastBar(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val accent = when (tone) {
         ToastTone.Success -> t.success
         ToastTone.Error -> t.danger
@@ -163,7 +156,7 @@ fun ToastBar(
             Spacer(Modifier.width(9.dp))
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodySmall,
+                style = AppTypography.bodySmall,
                 color = Color.White,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -174,7 +167,7 @@ fun ToastBar(
                 // 触控目标撑到 44dp，视觉尺寸保持小
                 Box(
                     Modifier
-                        .minimumInteractiveComponentSize()
+                        .size(44.dp)
                         .clip(CircleShape)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -218,110 +211,39 @@ fun ModalConfirmDialog(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
-
-    // 入场：遮罩淡入 + 弹窗从 0.94 放大到 1。不给动效会显得"啪"地砸出来
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown = true }
-    val scale by animateFloatAsState(
-        targetValue = if (shown) 1f else 0.94f,
-        animationSpec = tween(170),
-        label = "dialogScale",
-    )
-    val scrim by animateFloatAsState(
-        targetValue = if (shown) 0.32f else 0f,
-        animationSpec = tween(170),
-        label = "scrimFade",
-    )
-
-    Dialog(
+    val t = AppTheme.colors
+    WindowDialog(
+        show = true,
+        title = title,
+        summary = detail,
         onDismissRequest = onCancel,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnClickOutside = true,
-        ),
     ) {
-        // 遮罩：不做模糊（Android 上真模糊在弹窗尺寸下收益很低、代价很高），
-        // 压暗 + 让下面的内容退到背景就够了。
-        // 点遮罩只取消，**危险动作必须明确点到按钮**才生效。
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = scrim))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onCancel,
-                ),
-            contentAlignment = Alignment.Center,
+        if (danger) {
+            Icon(
+                imageVector = AppIcons.Warning,
+                contentDescription = null,
+                tint = t.danger,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            AcrylicSurface(
-                modifier = Modifier
-                    .padding(horizontal = 44.dp)
-                    .widthIn(max = 320.dp)
-                    .fillMaxWidth()
-                    .alpha(scale),
-                shape = RoundedCornerShape(20.dp),
-                strong = true,
-                elevation = 24.dp,
-            ) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    if (danger) {
-                        Icon(
-                            imageVector = AppIcons.Warning,
-                            contentDescription = null,
-                            tint = t.danger,
-                            modifier = Modifier.size(26.dp),
-                        )
-                        Spacer(Modifier.height(10.dp))
-                    }
-
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = t.textPrimary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 18.dp),
-                    )
-                    Spacer(Modifier.height(7.dp))
-                    Text(
-                        text = detail,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = t.textSecondary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 18.dp),
-                    )
-
-                    Spacer(Modifier.height(18.dp))
-                    Hairline(startInset = 0.dp)
-                    Row(Modifier.fillMaxWidth()) {
-                        DialogAction(
-                            text = cancelText,
-                            color = t.textSecondary,
-                            modifier = Modifier.weight(1f),
-                            onClick = onCancel,
-                        )
-                        Box(
-                            Modifier
-                                .width(1.dp)
-                                .height(46.dp)
-                                .background(t.divider),
-                        )
-                        DialogAction(
-                            text = confirmText,
-                            color = if (danger) t.danger else t.accent,
-                            bold = true,
-                            modifier = Modifier.weight(1f),
-                            onClick = onConfirm,
-                        )
-                    }
-                }
-            }
+            DialogAction(
+                text = cancelText,
+                color = t.textSecondary,
+                modifier = Modifier.weight(1f),
+                onClick = onCancel,
+            )
+            DialogAction(
+                text = confirmText,
+                color = if (danger) t.danger else t.accent,
+                bold = true,
+                modifier = Modifier.weight(1f),
+                onClick = onConfirm,
+            )
         }
     }
 }
@@ -334,27 +256,20 @@ private fun DialogAction(
     bold: Boolean = false,
     onClick: () -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .height(48.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            style = if (bold) {
-                MaterialTheme.typography.titleSmall
-            } else {
-                MaterialTheme.typography.bodyLarge
-            },
-            color = color,
-            maxLines = 1,
-        )
-    }
+    TextButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier.height(48.dp),
+        minWidth = 0.dp,
+        minHeight = 48.dp,
+        colors = ButtonDefaults.textButtonColors(
+            color = AppTheme.colors.track,
+            disabledColor = AppTheme.colors.track,
+            textColor = color,
+            disabledTextColor = color,
+        ),
+        textStyle = if (bold) AppTypography.titleSmall else AppTypography.bodyLarge,
+    )
 }
 
 /**
@@ -374,75 +289,21 @@ fun BubbleConfirm(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
-
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown = true }
-    val scale by animateFloatAsState(
-        targetValue = if (shown) 1f else 0.92f,
-        animationSpec = tween(150),
-        label = "bubbleScale",
-    )
-    val scrim by animateFloatAsState(
-        targetValue = if (shown) 0.18f else 0f,
-        animationSpec = tween(150),
-        label = "bubbleScrim",
-    )
-
-    Dialog(
-        onDismissRequest = onCancel,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnClickOutside = true,
-        ),
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = scrim))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onCancel,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            AcrylicSurface(
-                modifier = Modifier
-                    .padding(horizontal = 56.dp)
-                    .widthIn(max = 264.dp)
-                    .fillMaxWidth()
-                    .alpha(scale),
-                shape = RoundedCornerShape(16.dp),
-                strong = true,
-                elevation = 16.dp,
-            ) {
-                Column(Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
-                    Text(
-                        text = text,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = t.textPrimary,
-                        maxLines = 2,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(13.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BubbleButton(
-                            text = "取消",
-                            filled = false,
-                            modifier = Modifier.weight(1f),
-                            onClick = onCancel,
-                        )
-                        BubbleButton(
-                            text = confirmText,
-                            filled = true,
-                            modifier = Modifier.weight(1f),
-                            onClick = onConfirm,
-                        )
-                    }
-                }
-            }
+    val t = AppTheme.colors
+    WindowDialog(show = true, summary = text, onDismissRequest = onCancel) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BubbleButton(
+                text = "取消",
+                filled = false,
+                modifier = Modifier.weight(1f),
+                onClick = onCancel,
+            )
+            BubbleButton(
+                text = confirmText,
+                filled = true,
+                modifier = Modifier.weight(1f),
+                onClick = onConfirm,
+            )
         }
     }
 }
@@ -454,25 +315,20 @@ private fun BubbleButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
-    Box(
-        modifier = modifier
-            .minimumInteractiveComponentSize()
-            .clip(RoundedCornerShape(9.dp))
-            .background(if (filled) t.accent else t.track)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (filled) Color.White else t.textSecondary,
-            maxLines = 1,
-            modifier = Modifier.padding(vertical = 8.dp),
-        )
-    }
+    val t = AppTheme.colors
+    TextButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier.height(44.dp),
+        minWidth = 0.dp,
+        minHeight = 44.dp,
+        cornerRadius = 9.dp,
+        colors = ButtonDefaults.textButtonColors(
+            color = if (filled) t.accent else t.track,
+            disabledColor = if (filled) t.accent else t.track,
+            textColor = if (filled) Color.White else t.textSecondary,
+            disabledTextColor = if (filled) Color.White else t.textSecondary,
+        ),
+        textStyle = AppTypography.labelMedium,
+    )
 }

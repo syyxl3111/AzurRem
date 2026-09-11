@@ -18,10 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,10 +32,14 @@ import androidx.compose.ui.unit.dp
 import com.azurpilot.mobile.data.RunState
 import com.azurpilot.mobile.ui.icons.AppIcons
 import com.azurpilot.mobile.ui.syncAgeText
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
 import com.azurpilot.mobile.ui.theme.AppMono
+import com.azurpilot.mobile.ui.theme.AppTypography
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.MiuixSurface
 import com.azurpilot.mobile.ui.theme.NumeralSmall
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Text
 
 /**
  * 顶部状态条：实例名 + 运行态 + 当前任务 + 上次同步。
@@ -57,7 +57,7 @@ fun StatusCard(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
 
     val dotColor = when {
         !connected -> t.textTertiary
@@ -68,9 +68,8 @@ fun StatusCard(
     }
     val stateText = if (!connected) "未连接" else RunState.label(stateCode)
 
-    AcrylicSurface(
+    MiuixSurface(
         modifier = modifier.fillMaxWidth(),
-        elevation = 0.dp,
     ) {
         Row(
             Modifier
@@ -86,7 +85,7 @@ fun StatusCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = instance,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = AppTypography.titleMedium,
                         color = t.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -94,7 +93,7 @@ fun StatusCard(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = stateText,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = AppTypography.labelMedium,
                         color = dotColor,
                         maxLines = 1,
                     )
@@ -102,7 +101,7 @@ fun StatusCard(
                 Spacer(Modifier.height(3.dp))
                 Text(
                     text = if (connected) "$currentTask · ${syncAgeText(lastSyncAt)}" else "连接失败，正在重试…",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = AppTypography.bodySmall,
                     color = t.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -162,10 +161,10 @@ fun PulsingDot(color: Color, pulsing: Boolean, size: Dp) {
  */
 @Composable
 fun LargeTitle(text: String, modifier: Modifier = Modifier) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Text(
         text = text,
-        style = MaterialTheme.typography.headlineMedium,
+        style = AppTypography.headlineMedium,
         color = t.textPrimary,
         maxLines = 1,
         modifier = modifier
@@ -186,7 +185,7 @@ fun SectionTitle(
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Row(
         modifier
             .fillMaxWidth()
@@ -196,7 +195,7 @@ fun SectionTitle(
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.titleSmall,
+            style = AppTypography.titleSmall,
             color = t.textSecondary,
             modifier = Modifier.semantics { heading() },
         )
@@ -207,7 +206,7 @@ fun SectionTitle(
 /** 极简计数徽标 */
 @Composable
 fun CountBadge(count: Int) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Box(
         Modifier
             .clip(RoundedCornerShape(8.dp))

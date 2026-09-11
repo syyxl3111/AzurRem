@@ -2,7 +2,6 @@ package com.azurpilot.mobile.ui.screens
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -19,14 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -35,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,8 +40,16 @@ import com.azurpilot.mobile.ui.components.EmptyCard
 import com.azurpilot.mobile.ui.components.Hairline
 import com.azurpilot.mobile.ui.components.LargeTitle
 import com.azurpilot.mobile.ui.icons.AppIcons
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.AppTypography
+import com.azurpilot.mobile.ui.theme.MiuixSurface
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 
 /**
  * 配置页 —— 对齐 WebUI 任务配置的左栏（search + 总览 + 可折叠分组）。
@@ -67,7 +65,7 @@ fun ConfigScreen(
     insets: ScreenInsets,
     modifier: Modifier = Modifier,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     var query by remember { mutableStateOf("") }
     // 默认全部折叠 —— 和图一一致，10 行一眼看完
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
@@ -126,7 +124,7 @@ fun ConfigScreen(
                     } else {
                         item { SubHeader("搜索结果 · ${hits.size}") }
                         item {
-                            AcrylicSurface(Modifier.fillMaxWidth()) {
+                            MiuixSurface(modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.fillMaxWidth()) {
                                     hits.forEachIndexed { index, (group, item) ->
                                         TaskRow(
@@ -154,7 +152,7 @@ fun ConfigScreen(
                         val group = tree.groups[index]
                         val isOpen = expanded[group.key] == true
 
-                        AcrylicSurface(Modifier.fillMaxWidth()) {
+                        MiuixSurface(modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.fillMaxWidth()) {
                                 GroupHeader(
                                     name = group.name,
@@ -185,14 +183,13 @@ fun ConfigScreen(
 
 @Composable
 private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     TextField(
         value = query,
         onValueChange = onQueryChange,
         singleLine = true,
-        placeholder = {
-            Text("搜索配置", style = MaterialTheme.typography.bodyMedium, color = t.textTertiary)
-        },
+        label = "搜索配置",
+        useLabelAsPlaceholder = true,
         leadingIcon = {
             Icon(
                 imageVector = AppIcons.Magnifier,
@@ -201,13 +198,12 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
                 modifier = Modifier.size(18.dp),
             )
         },
-        textStyle = MaterialTheme.typography.bodyMedium,
-        shape = RoundedCornerShape(12.dp),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = t.panelStrong,
-            unfocusedContainerColor = t.panelStrong,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
+        textStyle = AppTypography.bodyMedium.copy(color = t.textPrimary),
+        cornerRadius = 12.dp,
+        colors = TextFieldDefaults.textFieldColors(
+            backgroundColor = t.panelStrong,
+            labelColor = t.textTertiary,
+            borderColor = Color.Transparent,
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -222,7 +218,7 @@ private fun GroupHeader(
     expanded: Boolean,
     onToggle: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val rotation by animateFloatAsState(if (expanded) 90f else 0f, label = "chevron")
 
     Row(
@@ -252,7 +248,7 @@ private fun GroupHeader(
         Spacer(Modifier.width(10.dp))
         Text(
             text = name,
-            style = MaterialTheme.typography.bodyLarge,
+            style = AppTypography.bodyLarge,
             color = t.textPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -260,7 +256,7 @@ private fun GroupHeader(
         )
         Text(
             text = count.toString(),
-            style = MaterialTheme.typography.labelSmall,
+            style = AppTypography.labelSmall,
             color = t.textTertiary,
         )
     }
@@ -273,7 +269,7 @@ private fun TaskRow(
     indented: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Row(
         Modifier
             .fillMaxWidth()
@@ -293,7 +289,7 @@ private fun TaskRow(
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = AppTypography.bodyLarge,
                 color = t.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -301,7 +297,7 @@ private fun TaskRow(
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = AppTypography.labelSmall,
                     color = t.textTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -319,10 +315,10 @@ private fun TaskRow(
 
 @Composable
 private fun SubHeader(text: String) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Text(
         text = text,
-        style = MaterialTheme.typography.titleSmall,
+        style = AppTypography.titleSmall,
         color = t.textSecondary,
         modifier = Modifier.padding(start = 16.dp, bottom = 2.dp),
     )
@@ -336,36 +332,32 @@ fun ChipButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val bg by animateColorAsState(if (filled) t.accent else t.track, label = "chipBg")
     val fg by animateColorAsState(if (filled) Color.White else t.textSecondary, label = "chipFg")
 
-    Box(
-        modifier = modifier
-            .minimumInteractiveComponentSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = fg,
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(bg)
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-        )
-    }
+    TextButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        cornerRadius = 10.dp,
+        minWidth = 0.dp,
+        minHeight = 31.dp,
+        colors = ButtonDefaults.textButtonColors(
+            color = bg,
+            disabledColor = bg,
+            textColor = fg,
+            disabledTextColor = fg,
+        ),
+        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+        textStyle = AppTypography.labelMedium,
+    )
 }
 
 /** 分组内的分隔线（与资源列表保持同一套视觉） */
 @Composable
 private fun RowDivider() = HorizontalDivider(
     thickness = 0.5.dp,
-    color = AppTheme.acrylic.divider,
+    color = AppTheme.colors.divider,
     modifier = Modifier.padding(start = 16.dp),
 )

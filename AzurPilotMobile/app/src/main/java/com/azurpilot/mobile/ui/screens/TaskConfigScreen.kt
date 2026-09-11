@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -17,14 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,15 +31,24 @@ import com.azurpilot.mobile.data.ConfigGroup
 import com.azurpilot.mobile.ui.AppUiState
 import com.azurpilot.mobile.ui.ScreenInsets
 import com.azurpilot.mobile.ui.cacheAgeText
-import com.azurpilot.mobile.ui.components.AcrylicSurfacePlaceholder
 import com.azurpilot.mobile.ui.components.EmptyCard
-import com.azurpilot.mobile.ui.components.Hairline
+import com.azurpilot.mobile.ui.components.MiuixSurfacePlaceholder
 import com.azurpilot.mobile.ui.components.SubPageScaffold
 import com.azurpilot.mobile.ui.components.SwipeBackContainer
 import com.azurpilot.mobile.ui.icons.AppIcons
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.AppTypography
+import com.azurpilot.mobile.ui.theme.MiuixSurface
 import org.json.JSONObject
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * 单个任务的配置编辑页。
@@ -70,7 +69,7 @@ fun TaskConfigScreen(
     insets: ScreenInsets,
     modifier: Modifier = Modifier,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val meta = state.configTask
     val values = state.configValues
 
@@ -107,7 +106,7 @@ fun TaskConfigScreen(
             when {
                 state.configLoading && meta == null -> {
                     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                        repeat(4) { AcrylicSurfacePlaceholder(height = 120.dp) }
+                        repeat(4) { MiuixSurfacePlaceholder(height = 120.dp) }
                     }
                 }
 
@@ -200,19 +199,25 @@ private fun ConfigGroupCard(
     onToggleSwitch: (ConfigArg, Boolean) -> Unit,
     onOpenPicker: (ConfigArg) -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
 
-    AcrylicSurface(Modifier.fillMaxWidth()) {
+    MiuixSurface(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth()) {
             Text(
                 text = group.name,
-                style = MaterialTheme.typography.titleSmall,
+                style = AppTypography.titleSmall,
                 color = t.textSecondary,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
             )
 
             group.args.forEachIndexed { index, item ->
-                if (index > 0) Hairline(startInset = 16.dp)
+                if (index > 0) {
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = t.divider,
+                        modifier = Modifier.padding(start = 16.dp),
+                    )
+                }
                 val raw = readValue(values, group.key, item.key)
                 val busy = saving == "${group.key}.${item.key}"
 
@@ -265,7 +270,6 @@ private fun SwitchRow(
     enabled: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    val t = AppTheme.acrylic
     Row(
         Modifier
             .fillMaxWidth()
@@ -285,7 +289,7 @@ private fun ValueRow(
     busy: Boolean,
     onClick: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Row(
         Modifier
             .fillMaxWidth()
@@ -301,7 +305,7 @@ private fun ValueRow(
         LabelledText(name = name, help = help, modifier = Modifier.weight(1f))
         Text(
             text = if (busy) "保存中…" else value,
-            style = MaterialTheme.typography.bodyMedium,
+            style = AppTypography.bodyMedium,
             color = if (busy) t.warning else t.textSecondary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -329,7 +333,7 @@ private fun ValueRow(
  */
 @Composable
 private fun PcOnlyRow(name: String, help: String) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Row(
         Modifier
             .fillMaxWidth()
@@ -340,7 +344,7 @@ private fun PcOnlyRow(name: String, help: String) {
         Spacer(Modifier.width(10.dp))
         Text(
             text = "请在 PC 端调整",
-            style = MaterialTheme.typography.bodySmall,
+            style = AppTypography.bodySmall,
             color = t.textTertiary,
             maxLines = 2,
             textAlign = TextAlign.End,
@@ -350,11 +354,11 @@ private fun PcOnlyRow(name: String, help: String) {
 
 @Composable
 private fun LabelledText(name: String, help: String, modifier: Modifier = Modifier) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Column(modifier) {
         Text(
             text = name,
-            style = MaterialTheme.typography.bodyLarge,
+            style = AppTypography.bodyLarge,
             color = t.textPrimary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -362,7 +366,7 @@ private fun LabelledText(name: String, help: String, modifier: Modifier = Modifi
         if (help.isNotBlank()) {
             Text(
                 text = help,
-                style = MaterialTheme.typography.labelSmall,
+                style = AppTypography.labelSmall,
                 color = t.textTertiary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -379,43 +383,46 @@ private fun OptionPickerDialog(
     onDismiss: () -> Unit,
     onPick: (String) -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val entries = options.entries.toList()
 
-    AlertDialog(
+    WindowDialog(
+        show = true,
+        title = title,
         onDismissRequest = onDismiss,
-        title = { Text(title, style = MaterialTheme.typography.titleMedium) },
-        text = {
-            LazyColumn(Modifier.heightIn(max = 380.dp)) {
-                items(entries.size) { i ->
-                    val (key, label) = entries[i]
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { onPick(key) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (key == current) t.accent else t.textPrimary,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (key == current) {
-                            Text("✓", style = MaterialTheme.typography.bodyMedium, color = t.accent)
-                        }
+    ) {
+        LazyColumn(Modifier.heightIn(max = 380.dp)) {
+            items(entries.size) { i ->
+                val (key, label) = entries[i]
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onPick(key) }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = label,
+                        style = AppTypography.bodyMedium,
+                        color = if (key == current) t.accent else t.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (key == current) {
+                        Text("✓", style = AppTypography.bodyMedium, color = t.accent)
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-    )
+        }
+        Spacer(Modifier.height(8.dp))
+        TextButton(
+            text = "取消",
+            onClick = onDismiss,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 @Composable
@@ -427,33 +434,46 @@ private fun TextInputDialog(
     onConfirm: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf(initial) }
+    val t = AppTheme.colors
 
-    AlertDialog(
+    WindowDialog(
+        show = true,
+        title = title,
         onDismissRequest = onDismiss,
-        title = { Text(title, style = MaterialTheme.typography.titleMedium) },
-        text = {
-            Column {
-                if (help.isNotBlank()) {
-                    Text(
-                        text = help,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AppTheme.acrylic.textTertiary,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                }
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column {
+            if (help.isNotBlank()) {
+                Text(
+                    text = help,
+                    style = AppTypography.labelSmall,
+                    color = t.textTertiary,
                 )
+                Spacer(Modifier.height(8.dp))
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(text) }) { Text("保存") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-    )
+            TextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                textStyle = AppTypography.bodyMedium.copy(color = t.textPrimary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(
+                text = "取消",
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                text = "保存",
+                onClick = { onConfirm(text) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+            )
+        }
+    }
 }
