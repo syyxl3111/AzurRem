@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标（API 26+。本项目 minSdk 26，所以只有这一套，不需要 PNG 兜底）。
+
+  前景是缩到 **80% 居中**的立绘，不是满幅 ——
+  Android 只保证中心 **72dp / 108dp（66.7%）** 的安全区不被遮罩裁掉；
+  满幅的话下巴和左侧那串樱花发饰会被圆形 / 圆角遮罩切掉。
+
+  底板是一层和立绘自身背景同色的浅灰（见 values/colors.xml），
+  所以留白那一圈几乎看不出来。
+
+  没有 <monochrome>：单色主题图标要求图形是纯色调，
+  一张照片做不了 —— 留着它只会让开了「主题图标」的用户看到一块空白。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

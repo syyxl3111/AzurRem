@@ -1,0 +1,71 @@
+# ═══════════════════════════════════════════════════════════
+#  AzurRem —— Git 忽略规则
+#
+#  原则：**凡是「换台机器就不一样」或者「能重新生成」的东西都不进仓库。**
+#  这个项目里有三类东西特别容易误提交，下面逐一注明。
+# ═══════════════════════════════════════════════════════════
+
+# ── 1. 构建产物 ──────────────────────────────────────────
+# dist/ 里是打好的 APK 和 exe（各 13MB 上下），发版请走 GitHub Releases，
+# 不要塞进 git 历史 —— 二进制一旦提交就永远留在历史里，仓库会迅速膨胀。
+dist/
+
+# PyInstaller 的中间产物（bridge/build/AzurRemBridge.pkg 一个就 13MB）
+bridge/build/
+
+# Gradle / Kotlin 的编译输出
+AzurPilotMobile/build/
+AzurPilotMobile/app/build/
+.gradle/
+.kotlin/
+AzurPilotMobile/.gradle/
+AzurPilotMobile/.kotlin/
+
+# Python 字节码
+__pycache__/
+*.pyc
+
+# ── 2. 本机环境（每台机器都不同，绝不能提交）────────────
+# local.properties 里是 Android SDK 的绝对路径，Android Studio 会自动生成
+local.properties
+AzurPilotMobile/local.properties
+
+.idea/
+*.iml
+*.hprof
+
+# ── 3. 数据桥的运行时产物 ────────────────────────────────
+# 这几个文件是程序自己写出来的，内容跟具体机器绑定：
+#   azurpilot-root.txt   记住上次用的 AzurPilot 目录（绝对路径）
+#   AzurRemBridge.log    运行日志
+#   azurrem-settings.json 挂件窗口的勾选项
+azurpilot-root.txt
+AzurRemBridge.log
+azurrem-settings.json
+
+# ── 4. 测试 / 排查的过程产物 ─────────────────────────────
+# 这些是跑 smoke_test_exe.py / tray_test_exe.py / verify_*.py 时生成的，
+# 属于一次性证据，每次跑内容都不一样。
+#
+# ⚠️ 这里必须用 `bridge/*.log` 这种通配，不能只列 `smoke_test_*.log` ——
+# 一开始就是那么写的，结果 subagent 新加的 tray_test_25565.log 漏了进去。
+# 凡是「测试脚本自己吐出来的东西」都该按通配挡掉。
+bridge/*.log
+bridge/*_report.txt
+bridge/exe_ship_exp.json
+
+# ── 5. 截图 ─────────────────────────────────────────────
+# shots/ 是开发过程中的全量实测截图（60+ 张，33MB）。
+# README 只引用 docs/screenshots/ 里那几张压过尺寸的，全量不入库。
+shots/
+
+# ── 6. 早期遗留 ─────────────────────────────────────────
+# MyApplication/ 是新建工程时 Android Studio 留下的空白模板
+# （包名 com.example.myapplication，FirstFragment / SecondFragment），
+# **全项目零引用**，构建也不会用到它。确认不要了直接删目录即可。
+MyApplication/
+
+# ── 7. 系统垃圾 ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
