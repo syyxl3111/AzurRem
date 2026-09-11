@@ -1,0 +1,119 @@
+name: 📊 数据对不上（手机和 PC 数字不一致）
+description: App 里显示的统计数字和 PC 上 AzurPilot 页面不一样
+title: "[数据] "
+labels: ["bug"]
+body:
+  # ─────────────────────────────────────────────────────────
+  #  为什么单独开一个模板：这类问题和普通 bug 要的信息完全不同。
+  #
+  #  这个项目里专门写了两个「逐字段对照」脚本（verify_*_parity.py），
+  #  就是因为这类偏差**极其隐蔽** —— 少 3 个钻石、概率差 0.1%，
+  #  不专门对比根本发现不了，而且很容易被当成「游戏数据本来就波动的」放过。
+  #
+  #  所以这个表单的核心是两个数：PC 上是多少、App 上是多少。
+  # ─────────────────────────────────────────────────────────
+  - type: markdown
+    attributes:
+      value: |
+        ### 先看一眼：有些「对不上」其实是正常的
+
+        这几处 PC 和 App **本来就可能不一样**，不是 bug：
+
+        - **采样时间不同** —— App 是缓存 + 定期刷新，PC 页面是点开那一刻现算的
+        - **「耄耋相接」是两张表** —— 「数据收集」（按侵蚀等级分组）和「收获」（战利品 CSV）
+          是两个完全不同的数据源，别拿一个去对另一个
+        - **日志页是「准实时」** —— 比 PC 慢大约 1 秒
+
+        如果确认不是上面这些，请继续填。
+
+  - type: dropdown
+    id: which
+    attributes:
+      label: 哪块数据对不上？
+      options:
+        - 委托收益统计
+        - 每日经验检测
+        - 侵蚀1 · 本月大世界
+        - 耄耋相接 · 数据收集
+        - 耄耋相接 · 收获
+        - 总行动力 / 全资源趋势
+        - 任务队列（运行中 / 队列中 / 等待中）
+        - 资源当前值（石油 / 物资 / 钻石…）
+        - 其它（写在下面）
+    validations:
+      required: true
+
+  - type: input
+    id: app_version
+    attributes:
+      label: App 版本
+      description: 「设置 → 关于 → 版本」
+      placeholder: "1.0.3"
+    validations:
+      required: true
+
+  - type: input
+    id: ap_version
+    attributes:
+      label: AzurPilot 版本
+      placeholder: "例如：v2.x.x"
+    validations:
+      required: false
+
+  - type: textarea
+    id: compare
+    attributes:
+      label: 两边的数字分别是什么？
+      description: |
+        尽量把**同一时刻**的两边数值都贴出来，逐项对应。截图更好（记得脱敏）。
+      placeholder: |
+        例如：委托收益统计 · 本月
+
+        项目         PC 上      App 上
+        钻石         186        183
+        心智魔方      47         47
+        心智        1,234      1,234
+        石油       25,160     25,160
+        物资       19,302     19,302
+        委托总次数     279        279
+    validations:
+      required: true
+
+  - type: input
+    id: when
+    attributes:
+      label: 大概什么时候发现的？
+      description: 时间点对排查有帮助（比如「刚跨过零点」「AzurPilot 刚更新过」）
+      placeholder: "例如：2026-09-11 早上，AzurPilot 昨天刚升级过"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: bridge_running
+    attributes:
+      label: 数据桥开着吗？
+      description: 大部分统计数字是从数据桥来的，它没开的话这些数字取不到
+      options:
+        - 开着，窗口显示「数据桥已启动」
+        - 开着，但窗口里是红字提示
+        - 没开 / 不确定
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充说明
+      description: 还有什么可能相关的？（比如当时正在跑什么任务、有没有重启过 App）
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我贴的截图/日志已经去掉了内网 IP 和安装路径
+          required: true
+        - label: 两边是在大致同一时刻看的（不是隔了半小时的数据）
+          required: true

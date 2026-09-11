@@ -1,0 +1,20 @@
+# Issue 模板选择页的配置
+#
+# blank_issues_enabled: false —— 关掉「空白 issue」入口。
+# 这个项目的问题排查强依赖版本号、跑没跑数据桥、日志这几样，
+# 空白 issue 里十有八九要来回问三轮才拿得到，对提的人也不友好。
+# 下面给三个结构化表单 + 几条自助链接，比让人对着空输入框发呆强。
+blank_issues_enabled: false
+
+contact_links:
+  - name: 📖 先看 README（很多问题上面就有答案）
+    url: https://github.com/syyxl3111/AzurRem#readme
+    about: 安装步骤、数据桥怎么用、为什么配置页能秒开、已知限制都写在里面。
+
+  - name: ⬇️ 下载最新版
+    url: https://github.com/syyxl3111/AzurRem/releases/latest
+    about: 报问题前先确认你用的是最新版 —— 不少问题在新版已经修掉了。
+
+  - name: 🔌 这是 AzurPilot 自己出的问题
+    url: https://github.com/wess09/AzurPilot
+    about: 如果问题出在 PC 端的 AzurPilot（而不是本 App 或数据桥），请去上游反馈。

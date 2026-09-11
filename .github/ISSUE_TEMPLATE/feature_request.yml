@@ -1,0 +1,75 @@
+name: 💡 功能建议
+description: 想要新功能，或者觉得哪里可以做得更好
+title: "[建议] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        欢迎提建议。有两点先说在前面，能省掉一轮来回：
+
+        - **PC 端 AzurPilot 本身的功能不在这个项目的范围内** ——
+          这里只做「把它的数据和操作搬到手机上」，改不了它自己的行为
+        - 有些东西是**做不了**的，不是没做，比如「任务级进度百分比」
+          （AzurPilot 本身没这个概念）。README 的「已知限制」里列了几条
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 和哪部分有关？
+      options:
+        - 手机 App 的界面 / 交互
+        - 手机 App 的功能（新的页面、新的操作）
+        - PC 数据桥（exe / 挂件窗口）
+        - 文档 / 安装体验
+        - 其它
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题？
+      description: |
+        **先说问题，再说方案** —— 这一步最重要。
+        直接说「加个 XX 按钮」的话，我不一定知道你实际卡在哪，
+        可能有个更简单的做法，也可能你想要的其实已经能做到了。
+      placeholder: |
+        例如：我经常在手机上看队列，但每次都要先切到「任务」页再往下找，
+        想一眼看到「下一个要跑的是什么」。
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 你希望它怎么做？
+      description: 有具体想法就写，没有也可以只写上面那段
+      placeholder: |
+        例如：希望主页的状态卡上直接显示下一个任务的名称和倒计时。
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternative
+    attributes:
+      label: 你自己现在是怎么绕过的？
+      description: 有帮助 —— 说明这个问题真实存在，也告诉了我你能接受的形态
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充（截图、参考）
+      description: 有别的 App 或 PC 页面上的效果图就更好（记得脱敏）
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我翻过 README 的「已知限制」，确认这个不在里面
+          required: true

@@ -337,6 +337,43 @@ python bridge\gui_test.py                     # 挂件窗口自测
 
 ## 许可
 
-<!-- 选一个再取消注释；没有 LICENSE 文件的话默认是「保留所有权利」，别人不能合法使用
-MIT License —— 见 LICENSE
--->
+**GNU General Public License v3.0** —— 见 [LICENSE](LICENSE)。
+
+```
+AzurRem —— AzurPilot 的原生安卓客户端 + PC 数据桥
+Copyright (C) 2026 syyxl3111
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+```
+
+### 为什么是 GPL-3.0
+
+不是偏好，是**上游要求**：本项目包含**移植自 [AzurPilot](https://github.com/wess09/AzurPilot)
+的代码**，而 AzurPilot 是 GPL-3.0 授权的。GPL-3.0 具有 copyleft 性质 ——
+分发衍生作品时，衍生作品也必须以同样的许可发布。
+
+有移植关系的部分（都有注释标注出处）：
+
+| 文件 | 来源 |
+|---|---|
+| `bridge/mobile_bridge.py` | `module/statistics/ship_exp_stats.py`（经验表与计算方法） |
+| `bridge/commission_stats.py` | `module/statistics/commission_income_stats.py`（聚合口径） |
+| `AzurPilotMobile/…/data/McpClient.kt` | `module/webui/app_stat_opsi.py`（侵蚀1 派生公式） |
+| `AzurPilotMobile/…/data/Models.kt` | `module/webui/app_dashboard.py`（队列三段切法） |
+| `AzurPilotMobile/…/ui/Format.kt` | `module/config/i18n/zh-CN.json`（任务中文名兜底表） |
+
+### 这意味着什么
+
+- ✅ 你可以自由使用、修改、分发，**甚至可以卖**
+- ✅ 如果你改了再分发，**必须也开源**（同样 GPL-3.0）
+- ✅ 必须保留版权声明和「无担保」声明
+- ❌ 不能把这份代码（或它的衍生版）做成闭源软件
+

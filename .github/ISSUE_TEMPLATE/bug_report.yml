@@ -1,0 +1,140 @@
+name: 🐛 Bug 报告
+description: App 或数据桥出问题了，报一下
+title: "[Bug] "
+labels: ["bug"]
+body:
+  # ─────────────────────────────────────────────────────────
+  #  ⚠️ 这段脱敏提醒是刻意放在最顶上的。
+  #
+  #  这个项目排查问题必须要日志和截图，而它们**天然带着隐私**：
+  #    · 数据桥的 AzurRemBridge.log 里有 AzurPilot 的安装路径和内网地址
+  #      （「数据桥已启动：http://192.168.x.x:25550」）
+  #    · App 设置页的截图里有你填的服务器地址
+  #    · AzurPilot 日志里有模拟器 serial、游戏服务器名
+  #  所以一定要在**贴之前**说清楚，而不是等人家贴完了再提醒。
+  # ─────────────────────────────────────────────────────────
+  - type: markdown
+    attributes:
+      value: |
+        ### 🔒 贴日志/截图前请先脱敏
+
+        排查问题需要日志，但**下面这几样东西会暴露你的隐私**，贴之前请先涂掉：
+
+        - **内网 IP / 公网 IP** —— 例如 `http://192.168.1.100:25548` 里的那段
+        - **AzurPilot 的安装路径** —— 例如 `D:\Tools\AzurPilot`（可能带你的用户名）
+        - **模拟器 serial、游戏账号相关信息**
+
+        数据桥的日志文件在 **exe 同目录的 `AzurRemBridge.log`**，
+        里面第一行通常就带着地址和路径，**别整份粘贴**。
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 出问题的是哪一部分？
+      description: 拿不准就选「不确定」
+      options:
+        - 手机 App（界面 / 操作 / 卡顿 / 闪退）
+        - PC 数据桥（AzurRemBridge.exe / 挂件窗口 / 托盘）
+        - 两个都有 / 不确定
+    validations:
+      required: true
+
+  - type: input
+    id: app_version
+    attributes:
+      label: App 版本
+      description: 在 App 里「设置 → 关于 → 版本」能看到（点一下还能顺便检查更新）
+      placeholder: "1.0.3"
+    validations:
+      required: true
+
+  - type: input
+    id: phone
+    attributes:
+      label: 手机型号和 Android 版本
+      description: 在系统「设置 → 关于手机」里看
+      placeholder: "例如：小米 14 / Android 15，或 MuMu 模拟器 Android 12"
+    validations:
+      required: true
+
+  - type: input
+    id: ap_version
+    attributes:
+      label: AzurPilot 版本
+      description: PC 上 AzurPilot 的版本号（WebUI 左下角或「关于」里能看到）
+      placeholder: "例如：v2.x.x"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: bridge_running
+    attributes:
+      label: 数据桥开着吗？
+      description: 就是那个显示「数据桥已启动」的小窗口。**它没开的话统计页和配置页会少一半功能**，请先确认
+      options:
+        - 开着，窗口显示「数据桥已启动」
+        - 开着，但窗口里是红字提示（请把红字内容写在下面）
+        - 没开 / 不知道怎么开
+        - 我用的不是 exe，是源码跑的 mobile_bridge.py
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: 具体现象
+      description: 发生了什么？越具体越好。有报错原文就贴原文（记得脱敏）
+      placeholder: |
+        例如：点开「统计 → 委托收益统计」一直是空的，但 PC 页面上有数据。
+        窗口第三行显示：未找到 alas-launcher.exe，请用文件夹按钮指定目录
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 按顺序写清楚怎么操作能重现。如果只是偶尔出现，也请说明
+      placeholder: |
+        1. 打开 App，进「统计」页
+        2. 往下滚到「委托收益统计」
+        3. 点「本周」
+        4. 数字还是上个月的
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 你期望的结果
+      placeholder: |
+        例如：应该显示本周的委托收益，和 PC 上一致
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图
+      description: |
+        **记得先脱敏！**（见页面顶部的说明）
+
+        有用的东西：
+        - App 里「设置 → 工具 → 查阅日志」的截图
+        - 数据桥窗口的截图（能看到那三行文字）
+        - `AzurRemBridge.log` 里**和问题相关的那几行**（不要整份贴）
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已经把日志/截图里的内网 IP、安装路径涂掉了
+          required: true
+        - label: 我用的是最新版（去「设置 → 版本」点一下检查过更新）
+          required: true
+        - label: 我翻过 README 的「已知限制」，确认这不是已知行为
+          required: true
