@@ -16,10 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -45,9 +41,13 @@ import com.azurpilot.mobile.ui.components.StatusCard
 import com.azurpilot.mobile.ui.icons.AppIcons
 import com.azurpilot.mobile.ui.shortDateTime
 import com.azurpilot.mobile.ui.taskLabel
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.AppTypography
+import com.azurpilot.mobile.ui.theme.MiuixSurface
 import com.azurpilot.mobile.ui.theme.NumeralSmall
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Text
 
 /**
  * 任务页。
@@ -227,7 +227,7 @@ private fun TaskGroupCard(
     onTrigger: (String) -> Unit,
     onOpenTask: (String) -> Unit,
 ) {
-    AcrylicSurface(Modifier.fillMaxWidth()) {
+    MiuixSurface(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth()) {
             tasks.forEachIndexed { index, task ->
                 TaskRow(
@@ -257,7 +257,7 @@ private fun TaskRow(
     onOpen: () -> Unit,
     onTrigger: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val interaction = remember { MutableInteractionSource() }
     // 没有箭头了，必须给按压反馈 —— 否则看不出整行可点
     val pressed by interaction.collectIsPressedAsState()
@@ -278,14 +278,14 @@ private fun TaskRow(
         Column(Modifier.weight(1f)) {
             Text(
                 text = taskName,
-                style = MaterialTheme.typography.bodyLarge,
+                style = AppTypography.bodyLarge,
                 color = t.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = shortDateTime(task.nextRun),
-                style = MaterialTheme.typography.bodySmall,
+                style = AppTypography.bodySmall,
                 color = t.textTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -316,7 +316,7 @@ private fun TaskRow(
 /** 任务列表的骨架：形状照着真实行来（一行标题 + 一行时间），不是随便一块灰 */
 @Composable
 private fun TaskListSkeleton() {
-    AcrylicSurface(Modifier.fillMaxWidth()) {
+    MiuixSurface(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             repeat(3) { index ->
                 Row(

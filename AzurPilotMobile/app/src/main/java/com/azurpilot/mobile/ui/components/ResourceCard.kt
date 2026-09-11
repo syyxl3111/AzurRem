@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -29,12 +26,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.azurpilot.mobile.data.ResourceItem
 import com.azurpilot.mobile.ui.formatNumber
+import com.azurpilot.mobile.ui.theme.AppTypography
 import com.azurpilot.mobile.ui.theme.AppTheme
 import com.azurpilot.mobile.ui.theme.NumeralCaption
-import com.azurpilot.mobile.ui.theme.NumeralHero
 import com.azurpilot.mobile.ui.theme.NumeralSmall
 import com.azurpilot.mobile.ui.theme.NumeralValue
 import com.azurpilot.mobile.ui.theme.ResourceColors
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Text
 
 /** 分组列表的行内边距（左右一致，分隔线也按这个值内缩） */
 private val ROW_PADDING = 16.dp
@@ -68,7 +67,7 @@ private val ROW_PADDING = 16.dp
  */
 @Composable
 fun ResourceRow(item: ResourceItem) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val color = ResourceColors.of(item.key, t.isDark)
 
     Row(
@@ -84,7 +83,7 @@ fun ResourceRow(item: ResourceItem) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = item.label,
-                style = MaterialTheme.typography.bodyLarge,
+                style = AppTypography.bodyLarge,
                 color = if (item.value == null) t.textTertiary else t.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -105,7 +104,7 @@ fun ResourceRow(item: ResourceItem) {
             Text(
                 text = if (item.value == null) "未采集" else formatNumber(item.value),
                 style = if (item.value == null) {
-                    MaterialTheme.typography.bodyLarge
+                    AppTypography.bodyLarge
                 } else {
                     NumeralValue
                 },
@@ -125,7 +124,7 @@ fun ResourceRow(item: ResourceItem) {
 fun Hairline(startInset: Dp = ROW_PADDING) {
     HorizontalDivider(
         thickness = 0.5.dp,
-        color = AppTheme.acrylic.divider,
+        color = AppTheme.colors.divider,
         modifier = Modifier.padding(start = startInset),
     )
 }
@@ -190,7 +189,7 @@ fun ResourceProgress(
  */
 @Composable
 private fun ValueCaption(item: ResourceItem, overflowColor: Color) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
 
     item.limit?.let { limit ->
         if (item.overflow) {

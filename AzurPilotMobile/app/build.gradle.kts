@@ -59,8 +59,8 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.foundation)
-    implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.miuix.ui)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.okhttp)
@@ -68,6 +68,7 @@ dependencies {
 
     // Compose 预览截图测试：用 layoutlib 离屏渲染 @Preview，不需要模拟器
     screenshotTestImplementation(platform(libs.androidx.compose.bom))
+    screenshotTestImplementation(libs.screenshot.validation.api)
     screenshotTestImplementation(libs.androidx.compose.ui.tooling)
 
     // 纯 JVM 单元测试（src/test）。用来验 ConfigCache 的磁盘格式 ——

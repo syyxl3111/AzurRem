@@ -1,11 +1,9 @@
 package com.azurpilot.mobile.ui.screens
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,15 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,8 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -49,8 +40,18 @@ import com.azurpilot.mobile.ui.ScreenInsets
 import com.azurpilot.mobile.ui.components.LargeTitle
 import com.azurpilot.mobile.ui.components.SectionTitle
 import com.azurpilot.mobile.ui.syncAgeText
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.AppTypography
+import com.azurpilot.mobile.ui.theme.MiuixSurface
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 
 @Composable
 fun SettingsScreen(
@@ -69,7 +70,7 @@ fun SettingsScreen(
     insets: ScreenInsets,
     modifier: Modifier = Modifier,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val SAMPLE_URL = Settings.SAMPLE_URL
 
     LazyColumn(
@@ -91,9 +92,9 @@ fun SettingsScreen(
             SectionTitle("连接")
         }
         item(key = "connCard") {
-            AcrylicSurface(
+            MiuixSurface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                cornerRadius = 14.dp,
             ) {
                 Column(Modifier.fillMaxWidth().padding(15.dp)) {
                     CommitTextField(
@@ -107,7 +108,7 @@ fun SettingsScreen(
                     if (state.serverUrl.isBlank()) {
                         Text(
                             text = "必填。格式：http://<电脑的IP>:25548　例如 $SAMPLE_URL",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = AppTypography.labelSmall,
                             color = t.warning,
                             modifier = Modifier.padding(top = 5.dp, start = 4.dp),
                         )
@@ -130,7 +131,7 @@ fun SettingsScreen(
                     Text(
                         // 之前这里直接拼了 lastSyncAt，把裸的毫秒时间戳露出来了
                         text = if (state.connected) "已连接 · ${syncAgeText(state.lastSyncAt)}" else "未连接",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = AppTypography.labelSmall,
                         color = if (state.connected) t.success else t.danger,
                     )
                 }
@@ -142,9 +143,9 @@ fun SettingsScreen(
             SectionTitle("刷新")
         }
         item(key = "pollCard") {
-            AcrylicSurface(
+            MiuixSurface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                cornerRadius = 14.dp,
             ) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     ChoiceRow(
@@ -173,9 +174,9 @@ fun SettingsScreen(
             SectionTitle("外观")
         }
         item(key = "themeCard") {
-            AcrylicSurface(
+            MiuixSurface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                cornerRadius = 14.dp,
             ) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     ChoiceRow(
@@ -193,9 +194,9 @@ fun SettingsScreen(
             SectionTitle("工具")
         }
         item(key = "toolCard") {
-            AcrylicSurface(
+            MiuixSurface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                cornerRadius = 14.dp,
             ) {
                 Column(Modifier.fillMaxWidth()) {
                     // 日志从原来的 Tab 挪到这里：点击进全屏子页面
@@ -213,9 +214,9 @@ fun SettingsScreen(
             SectionTitle("任务配置缓存")
         }
         item(key = "cacheCard") {
-            AcrylicSurface(
+            MiuixSurface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                cornerRadius = 14.dp,
             ) {
                 Column(Modifier.fillMaxWidth().padding(15.dp)) {
                     Text(
@@ -224,7 +225,7 @@ fun SettingsScreen(
                         } else {
                             "已缓存 ${state.cacheEntries} 个任务的配置"
                         },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = AppTypography.bodyMedium,
                         color = t.textPrimary,
                     )
                     Spacer(Modifier.height(5.dp))
@@ -233,18 +234,19 @@ fun SettingsScreen(
                     Text(
                         text = "打开任务配置页时先显示缓存内容，再在后台核对最新值。" +
                             "所以点进去立刻就出来，不用等网络。",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = AppTypography.labelSmall,
                         color = t.textTertiary,
                     )
                     if (state.prefetching && state.prefetchTotal > 0) {
                         Spacer(Modifier.height(10.dp))
                         LinearProgressIndicator(
-                            progress = {
-                                state.prefetchDone.toFloat() / state.prefetchTotal.toFloat()
-                            },
-                            modifier = Modifier.fillMaxWidth().height(3.dp),
-                            color = t.accent,
-                            trackColor = t.track,
+                            progress = state.prefetchDone.toFloat() / state.prefetchTotal.toFloat(),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                                foregroundColor = t.accent,
+                                backgroundColor = t.track,
+                            ),
+                            height = 3.dp,
                         )
                     }
                     Spacer(Modifier.height(11.dp))
@@ -267,9 +269,9 @@ fun SettingsScreen(
                 }.getOrNull().orEmpty().ifBlank { "—" }
             }
 
-            AcrylicSurface(
+            MiuixSurface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                cornerRadius = 14.dp,
             ) {
                 Column(Modifier.fillMaxWidth()) {
                     // 检查更新：查本项目的 GitHub Releases，有新版就下 APK 交给系统安装器
@@ -289,7 +291,7 @@ fun SettingsScreen(
                 text = "AzurRem · AzurPilot 的原生安卓客户端。\n" +
                     "通过 AzurPilot 自带的 MCP 服务读取状态与日志，不修改服务端任何文件。\n" +
                     "服务端需保持 WebUI 运行（默认 25548 端口），/mcp 由 WebUI 一并挂载。",
-                style = MaterialTheme.typography.bodySmall,
+                style = AppTypography.bodySmall,
                 color = t.textSecondary,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 7.dp),
             )
@@ -310,17 +312,23 @@ private fun CommitTextField(
     keyboardType: KeyboardType,
     onCommit: (String) -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val focusManager = LocalFocusManager.current
     var text by remember { mutableStateOf(value) }
     LaunchedEffect(value) { text = value }
 
-    OutlinedTextField(
+    TextField(
         value = text,
         onValueChange = { text = it },
-        label = { Text(label) },
+        label = label,
         singleLine = true,
-        textStyle = MaterialTheme.typography.bodyMedium,
+        textStyle = AppTypography.bodyMedium.copy(color = t.textPrimary),
+        cornerRadius = 12.dp,
+        colors = TextFieldDefaults.textFieldColors(
+            backgroundColor = t.panelStrong,
+            labelColor = t.textTertiary,
+            borderColor = t.accent,
+        ),
         keyboardOptions = KeyboardOptions(
             keyboardType = keyboardType,
             imeAction = ImeAction.Done,
@@ -349,7 +357,7 @@ private fun NavRow(
     icon: ImageVector? = AppIcons.LogDoc,
     onClick: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Row(
         Modifier
             .fillMaxWidth()
@@ -362,7 +370,7 @@ private fun NavRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
-            androidx.compose.material3.Icon(
+            Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = t.accent,
@@ -372,19 +380,19 @@ private fun NavRow(
         }
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyLarge,
+            style = AppTypography.bodyLarge,
             color = t.textPrimary,
             modifier = Modifier.weight(1f),
         )
         if (!value.isNullOrBlank()) {
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodySmall,
+                style = AppTypography.bodySmall,
                 color = t.textTertiary,
             )
             Spacer(Modifier.width(6.dp))
         }
-        androidx.compose.material3.Icon(
+        Icon(
             imageVector = com.azurpilot.mobile.ui.icons.AppIcons.ChevronRight,
             contentDescription = null,
             tint = t.textTertiary,
@@ -406,7 +414,7 @@ private fun UpdateStatus(
     state: AppUiState,
     onDownload: () -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val progress = state.updateProgress
 
     when {
@@ -419,25 +427,32 @@ private fun UpdateStatus(
                     } else {
                         "正在下载 ${megabytes(got)} MB"
                     },
-                    style = MaterialTheme.typography.labelSmall,
+                    style = AppTypography.labelSmall,
                     color = t.textSecondary,
                 )
                 Spacer(Modifier.height(8.dp))
                 // total 未知时用**不确定态**（来回滚动那条），不要假装是 0%。
-                // Material3 里这两种是两个不同的重载，只能分支写。
-                val barModifier = Modifier.fillMaxWidth().height(3.dp)
+                // MIUIX 通过 progress = null 表示不确定态。
+                val barModifier = Modifier.fillMaxWidth()
                 if (total > 0) {
                     LinearProgressIndicator(
-                        progress = { (got.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
+                        progress = (got.toFloat() / total.toFloat()).coerceIn(0f, 1f),
                         modifier = barModifier,
-                        color = t.accent,
-                        trackColor = t.track,
+                        colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                            foregroundColor = t.accent,
+                            backgroundColor = t.track,
+                        ),
+                        height = 3.dp,
                     )
                 } else {
                     LinearProgressIndicator(
+                        progress = null,
                         modifier = barModifier,
-                        color = t.accent,
-                        trackColor = t.track,
+                        colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                            foregroundColor = t.accent,
+                            backgroundColor = t.track,
+                        ),
+                        height = 3.dp,
                     )
                 }
             }
@@ -448,14 +463,14 @@ private fun UpdateStatus(
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
                 Text(
                     text = "发现新版本 ${info.version}",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = AppTypography.bodyMedium,
                     color = t.textPrimary,
                 )
                 if (info.apkSize > 0) {
                     Spacer(Modifier.height(3.dp))
                     Text(
                         text = "APK 体积 ${megabytes(info.apkSize)} MB · 下载后交给系统安装程序",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = AppTypography.labelSmall,
                         color = t.textTertiary,
                     )
                 }
@@ -466,7 +481,7 @@ private fun UpdateStatus(
 
         state.updateMessage != null -> Text(
             text = state.updateMessage,
-            style = MaterialTheme.typography.labelSmall,
+            style = AppTypography.labelSmall,
             color = t.textTertiary,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         )
@@ -485,11 +500,11 @@ private fun ChoiceRow(
     selected: Int,
     onSelect: (Int) -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 9.dp)) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
+            style = AppTypography.bodyMedium,
             color = t.textSecondary,
         )
         Spacer(Modifier.height(8.dp))
@@ -501,28 +516,24 @@ private fun ChoiceRow(
                     label = "choiceBg",
                 )
                 val fg by animateColorAsState(
-                    targetValue = if (isSelected) androidx.compose.ui.graphics.Color.White else t.textSecondary,
+                    targetValue = if (isSelected) Color.White else t.textSecondary,
                     label = "choiceFg",
                 )
-                // 药丸视觉 ~31dp，但触控目标撑到 48dp（外面套一层可点 Box）
-                Box(
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(bg)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { onSelect(value) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = text,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = fg,
-                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                    )
-                }
+                TextButton(
+                    text = text,
+                    onClick = { onSelect(value) },
+                    cornerRadius = 9.dp,
+                    minWidth = 0.dp,
+                    minHeight = 31.dp,
+                    colors = ButtonDefaults.textButtonColors(
+                        color = bg,
+                        disabledColor = bg,
+                        textColor = fg,
+                        disabledTextColor = fg,
+                    ),
+                    insideMargin = PaddingValues(horizontal = 11.dp, vertical = 7.dp),
+                    textStyle = AppTypography.labelMedium,
+                )
             }
         }
     }

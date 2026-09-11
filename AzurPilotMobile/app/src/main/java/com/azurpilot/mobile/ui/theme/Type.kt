@@ -1,6 +1,5 @@
 package com.azurpilot.mobile.ui.theme
 
-import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -8,6 +7,8 @@ import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.azurpilot.mobile.R
+import top.yukonga.miuix.kmp.theme.TextStyles
+import top.yukonga.miuix.kmp.theme.defaultTextStyles
 
 /**
  * 字体：Inter —— SF Pro 的最佳开源替身。
@@ -86,7 +87,20 @@ val NumeralLarge = NumeralHero
 val NumeralMedium = NumeralValue
 val NumeralCompact = NumeralValue
 
-val AppTypography = Typography(
+data class AppTextStyles(
+    val headlineMedium: TextStyle,
+    val titleLarge: TextStyle,
+    val titleMedium: TextStyle,
+    val titleSmall: TextStyle,
+    val bodyLarge: TextStyle,
+    val bodyMedium: TextStyle,
+    val bodySmall: TextStyle,
+    val labelMedium: TextStyle,
+    val labelSmall: TextStyle,
+    val labelLarge: TextStyle,
+)
+
+val AppTypography = AppTextStyles(
     // iOS Large Title —— 页面顶部的大标题
     //
     // ⚠️ 字距原来是 **-0.7sp，符号是反的**。HIG 的字距表里 34pt 是 **+0.37pt（正值）**，
@@ -165,6 +179,23 @@ val AppTypography = Typography(
         fontSize = 15.sp,
         letterSpacing = -0.24.sp,
     ),
+)
+
+val AppMiuixTextStyles: TextStyles = defaultTextStyles(
+    main = AppTypography.bodyLarge,
+    paragraph = AppTypography.bodyLarge,
+    body1 = AppTypography.bodyMedium,
+    body2 = AppTypography.bodySmall,
+    button = AppTypography.labelLarge,
+    footnote1 = AppTypography.labelSmall,
+    footnote2 = NumeralCaption,
+    headline1 = AppTypography.bodyLarge,
+    headline2 = AppTypography.bodyMedium,
+    subtitle = AppTypography.titleSmall,
+    title1 = AppTypography.headlineMedium,
+    title2 = AppTypography.titleLarge,
+    title3 = AppTypography.titleMedium,
+    title4 = AppTypography.titleSmall,
 )
 
 /**

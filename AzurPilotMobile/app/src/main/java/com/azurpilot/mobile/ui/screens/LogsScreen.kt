@@ -16,17 +16,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -44,9 +39,14 @@ import com.azurpilot.mobile.ui.components.StatusCard
 import com.azurpilot.mobile.ui.components.SubPageScaffold
 import com.azurpilot.mobile.ui.components.SwipeBackContainer
 import com.azurpilot.mobile.ui.icons.AppIcons
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.AppTypography
 import com.azurpilot.mobile.ui.theme.LogLineStyle
+import com.azurpilot.mobile.ui.theme.MiuixSurface
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Text
 
 /** 解析 `2026-09-11 02:25:01.123 | INFO | 消息`，毫秒要保留（PC 端就是这么显示的） */
 private val LOG_RE = Regex("""^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})\.(\d{3}) \| (\w+)\s*\| ?(.*)$""")
@@ -63,7 +63,7 @@ fun LogsScreen(
     insets: ScreenInsets,
     modifier: Modifier = Modifier,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     var autoScroll by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
 
@@ -108,7 +108,7 @@ fun LogsScreen(
                 }
             },
         ) {
-            AcrylicSurface(
+            MiuixSurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -126,7 +126,7 @@ fun LogsScreen(
                         ) {
                             Text(
                                 text = if (state.connected) "还没有日志" else "未连接，拿不到日志",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = AppTypography.bodyMedium,
                                 color = t.textSecondary,
                             )
                         }
@@ -163,7 +163,7 @@ fun LogsScreen(
  */
 @Composable
 private fun LogLine(raw: String) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val match = LOG_RE.find(raw)
 
     if (match == null) {
@@ -194,7 +194,7 @@ private fun LogLine(raw: String) {
         "ERROR", "CRITICAL" -> t.danger
         "WARNING", "WARN" -> t.warning
         "DEBUG" -> t.textTertiary
-        else -> t.logInfo
+        else -> t.success
     }
     val bodyColor = when (level) {
         "ERROR", "CRITICAL" -> t.danger
@@ -217,7 +217,7 @@ private fun LogLine(raw: String) {
         Text(
             text = "$time.$millis",
             style = LogLineStyle,
-            color = t.logTime,
+            color = t.accent,
         )
         Text(PIPE, style = LogLineStyle, color = t.textTertiary)
         Text(
@@ -233,12 +233,12 @@ private fun LogLine(raw: String) {
  * 「自动滚动 开 / 关」胶囊。
  *
  * 触控目标 48dp、**视觉尺寸保持 ~29dp** —— 做法是外面套一层
- * `minimumInteractiveComponentSize()` 的可点 Box，把胶囊居中放进去。
+ * `sizeIn(minWidth = 48.dp, minHeight = 48.dp)` 的可点 Box，把胶囊居中放进去。
  * 直接给胶囊本身加这个 modifier 会把底色也一起撑大，那就不是"小胶囊"了。
  */
 @Composable
 private fun AutoScrollChip(enabled: Boolean, onToggle: (Boolean) -> Unit) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val bg by animateColorAsState(
         targetValue = if (enabled) t.accent.copy(alpha = 0.16f) else t.track,
         label = "chipBg",
@@ -250,7 +250,7 @@ private fun AutoScrollChip(enabled: Boolean, onToggle: (Boolean) -> Unit) {
 
     Box(
         modifier = Modifier
-            .minimumInteractiveComponentSize()
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -266,13 +266,13 @@ private fun AutoScrollChip(enabled: Boolean, onToggle: (Boolean) -> Unit) {
         ) {
             Text(
                 text = "自动滚动",
-                style = MaterialTheme.typography.labelSmall,
+                style = AppTypography.labelSmall,
                 color = fg,
             )
             Spacer(Modifier.width(5.dp))
             Text(
                 text = if (enabled) "开" else "关",
-                style = MaterialTheme.typography.labelSmall,
+                style = AppTypography.labelSmall,
                 color = fg,
             )
         }

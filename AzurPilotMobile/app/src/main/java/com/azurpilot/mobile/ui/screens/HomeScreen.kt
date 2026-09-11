@@ -23,7 +23,7 @@ import com.azurpilot.mobile.ui.components.ResourceRow
 import com.azurpilot.mobile.ui.components.SectionTitle
 import com.azurpilot.mobile.ui.components.StatusCard
 import com.azurpilot.mobile.ui.taskLabel
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
+import com.azurpilot.mobile.ui.theme.MiuixSurface
 
 /**
  * 主页。
@@ -90,7 +90,7 @@ fun HomeScreen(
 
                 else -> {
                     item(key = "resources") {
-                        AcrylicSurface(modifier = Modifier.fillMaxWidth()) {
+                        MiuixSurface(modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.fillMaxWidth()) {
                                 state.resources.forEachIndexed { index, res ->
                                     ResourceRow(res)

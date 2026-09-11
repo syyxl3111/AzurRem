@@ -31,8 +31,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.MiuixSurface
 
 /**
  * 骨架屏。
@@ -51,7 +51,7 @@ fun SkeletonBar(
     modifier: Modifier = Modifier,
     corner: Dp = 5.dp,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val transition = rememberInfiniteTransition(label = "shimmer")
     val sweep by transition.animateFloat(
         initialValue = -0.7f,
@@ -97,9 +97,9 @@ fun SkeletonBar(
  */
 @Composable
 fun ResourceListSkeleton(modifier: Modifier = Modifier) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
 
-    AcrylicSurface(modifier.fillMaxWidth()) {
+    MiuixSurface(modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth()) {
             repeat(5) { index ->
                 Column(
@@ -149,7 +149,7 @@ fun StatsSectionSkeleton(
     showChart: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    AcrylicSurface(modifier.fillMaxWidth()) {
+    MiuixSurface(modifier.fillMaxWidth()) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -184,7 +184,7 @@ fun ConfigTreeSkeleton(groups: Int = 6, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         repeat(groups) {
-            AcrylicSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            MiuixSurface(Modifier.fillMaxWidth(), cornerRadius = 14.dp) {
                 Row(
                     Modifier
                         .fillMaxWidth()

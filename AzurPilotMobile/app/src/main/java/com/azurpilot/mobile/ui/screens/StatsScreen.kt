@@ -16,13 +16,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -46,22 +42,25 @@ import com.azurpilot.mobile.data.downsampleAp
 import com.azurpilot.mobile.ui.AppUiState
 import com.azurpilot.mobile.ui.BRIDGE_DOWN_HINT
 import com.azurpilot.mobile.ui.ScreenInsets
-import com.azurpilot.mobile.ui.components.AcrylicSurfacePlaceholder
 import com.azurpilot.mobile.ui.components.EmptyCard
 import com.azurpilot.mobile.ui.components.Hairline
 import com.azurpilot.mobile.ui.components.LargeTitle
 import com.azurpilot.mobile.ui.components.SectionTitle
 import com.azurpilot.mobile.ui.components.StatsSectionSkeleton
 import com.azurpilot.mobile.ui.components.StatusCard
+import com.azurpilot.mobile.ui.components.MiuixSurfacePlaceholder
 import com.azurpilot.mobile.ui.formatDayShort
 import com.azurpilot.mobile.ui.formatNumber
 import com.azurpilot.mobile.ui.taskLabel
-import com.azurpilot.mobile.ui.theme.AcrylicSurface
 import com.azurpilot.mobile.ui.theme.AppTheme
+import com.azurpilot.mobile.ui.theme.AppTypography
+import com.azurpilot.mobile.ui.theme.MiuixSurface
 import com.azurpilot.mobile.ui.theme.NumeralSmall
 import com.azurpilot.mobile.ui.theme.ResourceColors
 import java.util.Locale
 import kotlin.math.roundToLong
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Text
 
 private const val AP_BUCKETS = 90
 
@@ -73,7 +72,7 @@ fun StatsScreen(
     insets: ScreenInsets,
     modifier: Modifier = Modifier,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
 
     val chartPoints = remember(state.apTimeline) { downsampleAp(state.apTimeline, AP_BUCKETS) }
     val latestAp = state.apTimeline.lastOrNull()
@@ -120,18 +119,18 @@ fun StatsScreen(
             // ── 行动力曲线（大图） ──
             item(key = "apTitle") { SectionTitle("总行动力 · 含未开箱") }
             item(key = "apCard") {
-                AcrylicSurface(
+                MiuixSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
+                    cornerRadius = 14.dp,
                 ) {
                     Column(Modifier.fillMaxWidth().padding(15.dp)) {
                         if (state.statsLoading && chartPoints.isEmpty()) {
-                            AcrylicSurfacePlaceholder(height = 110.dp)
+                            MiuixSurfacePlaceholder(height = 110.dp)
                         } else if (chartPoints.size < 2 || latestAp == null) {
                             Text(
                                 text = "还没有足够的行动力采样点。\n" +
                                     "AzurPilot 在大世界任务运行时会持续记录，攒够 2 个点就会出曲线。",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = AppTypography.bodySmall,
                                 color = t.textSecondary,
                             )
                         } else {
@@ -143,7 +142,7 @@ fun StatsScreen(
                                 // 曲线本身画的是总量（ap_total），因为它才反映真实消耗。
                                 Text(
                                     text = formatNumber(latestAp.ap.toLong()),
-                                    style = MaterialTheme.typography.titleLarge,
+                                    style = AppTypography.titleLarge,
                                     color = t.textPrimary,
                                 )
                                 latestAp.apTotal?.let { total ->
@@ -210,7 +209,7 @@ fun StatsScreen(
             item(key = "trendCard") {
                 when {
                     state.historyLoading && trendRows.isEmpty() -> {
-                        AcrylicSurfacePlaceholder(height = 260.dp)
+                        MiuixSurfacePlaceholder(height = 260.dp)
                     }
 
                     trendRows.isEmpty() -> {
@@ -221,9 +220,9 @@ fun StatsScreen(
                     }
 
                     else -> {
-                        AcrylicSurface(
+                        MiuixSurface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
+                            cornerRadius = 14.dp,
                         ) {
                             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                                 trendRows.forEachIndexed { index, (res, series) ->
@@ -276,16 +275,16 @@ fun StatsScreen(
                 val cl1 = state.cl1Stats
                 val exp = state.shipExp
                 when {
-                    cl1 == null && state.statsLoading -> AcrylicSurfacePlaceholder(height = 320.dp)
+                    cl1 == null && state.statsLoading -> MiuixSurfacePlaceholder(height = 320.dp)
 
                     cl1 == null -> EmptyCard(
                         title = "暂无侵蚀1数据",
                         detail = "AzurPilot 还没写出本月的大世界统计。",
                     )
 
-                    else -> AcrylicSurface(
+                    else -> MiuixSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        cornerRadius = 14.dp,
                     ) {
                         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                             // PC 把这行单独放在表格上方
@@ -347,16 +346,16 @@ fun StatsScreen(
                 val hz = state.meowHazard
                 when {
                     state.meowHazardLoading && hz == null ->
-                        AcrylicSurfacePlaceholder(height = 200.dp)
+                        MiuixSurfacePlaceholder(height = 200.dp)
 
                     hz == null || hz.rows.isEmpty() -> EmptyCard(
                         title = "暂无耄耋相接数据收集",
                         detail = BRIDGE_DOWN_HINT,
                     )
 
-                    else -> AcrylicSurface(
+                    else -> MiuixSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        cornerRadius = 14.dp,
                     ) {
                         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                             Text(
@@ -388,7 +387,7 @@ fun StatsScreen(
             item(key = "meowCard") {
                 val meow = state.meowStats
                 when {
-                    state.meowLoading && meow == null -> AcrylicSurfacePlaceholder(height = 120.dp)
+                    state.meowLoading && meow == null -> MiuixSurfacePlaceholder(height = 120.dp)
 
                     meow == null || !meow.available -> EmptyCard(
                         title = "暂无耄耋相接收获数据",
@@ -396,9 +395,9 @@ fun StatsScreen(
                             ?: "完成一次耄耋相接（大世界指挥喵）后会自动记录到 azurstat_meowofficer_farming.csv。",
                     )
 
-                    else -> AcrylicSurface(
+                    else -> MiuixSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        cornerRadius = 14.dp,
                     ) {
                         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                             meow.rows.filter { it.rounds > 0 }.forEach { row ->
@@ -421,7 +420,7 @@ fun StatsScreen(
             item(key = "expCard") {
                 val exp = state.shipExp
                 when {
-                    state.shipExpLoading && exp == null -> AcrylicSurfacePlaceholder(height = 180.dp)
+                    state.shipExpLoading && exp == null -> MiuixSurfacePlaceholder(height = 180.dp)
 
                     exp == null || !exp.available -> EmptyCard(
                         title = "暂无经验数据",
@@ -429,9 +428,9 @@ fun StatsScreen(
                             ?: "运行「大世界练级（侵蚀1）」后会在 log/cl1/<实例>/ship_exp_data.json 里生成。",
                     )
 
-                    else -> AcrylicSurface(
+                    else -> MiuixSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        cornerRadius = 14.dp,
                     ) {
                         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                             StatRow("上次检测", exp.lastCheckTime.ifBlank { "—" })
@@ -463,7 +462,7 @@ fun StatsScreen(
 /** 一艘船的练级进度：左边舰位+等级，右边还差多少 */
 @Composable
 private fun ShipExpRowView(ship: com.azurpilot.mobile.data.ShipExpRow) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     val done = ship.expNeeded <= 0L
 
     Row(
@@ -474,14 +473,14 @@ private fun ShipExpRowView(ship: com.azurpilot.mobile.data.ShipExpRow) {
     ) {
         Text(
             text = "${ship.position} 号位",
-            style = MaterialTheme.typography.bodyMedium,
+            style = AppTypography.bodyMedium,
             color = t.textSecondary,
             modifier = Modifier.width(54.dp),
         )
         Column(Modifier.weight(1f)) {
             Text(
                 text = "Lv.${ship.level}",
-                style = MaterialTheme.typography.bodyLarge,
+                style = AppTypography.bodyLarge,
                 color = t.textPrimary,
             )
             Text(
@@ -533,7 +532,7 @@ private fun TrendRow(
     max: Long,
     series: List<TrendPoint>,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
 
     Row(
         Modifier
@@ -552,7 +551,7 @@ private fun TrendRow(
         Column(Modifier.weight(1f)) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
+                style = AppTypography.bodyMedium,
                 color = t.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -589,7 +588,7 @@ private fun TrendRow(
 
 @Composable
 private fun StatRow(label: String, value: String) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Row(
         Modifier
             .fillMaxWidth()
@@ -598,7 +597,7 @@ private fun StatRow(label: String, value: String) {
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
+            style = AppTypography.bodyMedium,
             color = t.textSecondary,
             modifier = Modifier.weight(1f),
         )
@@ -613,10 +612,10 @@ private fun StatRow(label: String, value: String) {
 /** 卡片内的小分组标题（比如「侵蚀 3 级」） */
 @Composable
 private fun StatGroupHeader(text: String) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Text(
         text = text,
-        style = MaterialTheme.typography.titleSmall,
+        style = AppTypography.titleSmall,
         color = t.textPrimary,
         modifier = Modifier
             .fillMaxWidth()
@@ -644,10 +643,10 @@ private fun CommissionCard(
     error: String?,
     onPeriod: (CommissionPeriod) -> Unit,
 ) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
 
     when {
-        loading && income == null -> AcrylicSurfacePlaceholder(height = 240.dp)
+        loading && income == null -> MiuixSurfacePlaceholder(height = 240.dp)
 
         // ★ 「读不到」和「零收益」必须分开。
         //   桥没开的时候如果显示成「本月暂无委托收益」，用户会以为自己真的没收成，
@@ -657,9 +656,9 @@ private fun CommissionCard(
             detail = error ?: BRIDGE_DOWN_HINT,
         )
 
-        else -> AcrylicSurface(
+        else -> MiuixSurface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
+            cornerRadius = 14.dp,
         ) {
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 // ── 周期切换（今日 / 本周 / 本月）──
@@ -683,7 +682,7 @@ private fun CommissionCard(
                         ) {
                             Text(
                                 text = p.label,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = AppTypography.labelMedium,
                                 color = if (selected) Color.White else t.textSecondary,
                             )
                         }
@@ -695,7 +694,7 @@ private fun CommissionCard(
                 if (income.isEmpty) {
                     Text(
                         text = "暂无委托收益数据，运行委托后将自动更新",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = AppTypography.bodySmall,
                         color = t.textSecondary,
                         modifier = Modifier.padding(horizontal = 15.dp, vertical = 16.dp),
                     )
@@ -734,7 +733,7 @@ private fun CommissionCard(
 /** 一种资源：左边色点 + 中文名，右边数量；下面一行小字给次数与均值 */
 @Composable
 private fun CommissionRowItem(row: CommissionRow) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Column(
         Modifier
             .fillMaxWidth()
@@ -751,20 +750,20 @@ private fun CommissionRowItem(row: CommissionRow) {
             Spacer(Modifier.width(9.dp))
             Text(
                 text = row.label,
-                style = MaterialTheme.typography.bodyMedium,
+                style = AppTypography.bodyMedium,
                 color = t.textPrimary,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = formatNumber(row.total),
-                style = MaterialTheme.typography.titleMedium,
+                style = AppTypography.titleMedium,
                 color = t.textPrimary,
             )
         }
         Spacer(Modifier.height(2.dp))
         Text(
             text = "${row.count} 次 · 平均 ${trimNumber(row.avg)}",
-            style = MaterialTheme.typography.labelSmall,
+            style = AppTypography.labelSmall,
             color = t.textTertiary,
             modifier = Modifier.padding(start = 18.dp),
         )
@@ -774,7 +773,7 @@ private fun CommissionRowItem(row: CommissionRow) {
 /** 一条最近的委托结算：左边时间，右边「资源×数量」串 */
 @Composable
 private fun RecentCommissionRow(time: String, parts: String) {
-    val t = AppTheme.acrylic
+    val t = AppTheme.colors
     Row(
         Modifier
             .fillMaxWidth()
@@ -793,7 +792,7 @@ private fun RecentCommissionRow(time: String, parts: String) {
         )
         Text(
             text = parts,
-            style = MaterialTheme.typography.bodySmall,
+            style = AppTypography.bodySmall,
             color = t.textSecondary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
