@@ -1,8 +1,11 @@
 # AzurRem
 
-**把 PC 上的 [AzurPilot](https://github.com/) WebUI 原生重建到安卓手机上。**
+**把 PC 上的 [AzurPilot](https://github.com/wess09/AzurPilot) WebUI 原生重建到安卓手机上。**
 
 不是 WebView 套壳 —— 界面是用 Kotlin + Jetpack Compose 重写的，数据和操作走 AzurPilot 自己的 MCP 服务。电脑上跑一个小挂件当数据桥，手机连它就行。
+
+> 本仓库是 AzurPilot 的**第三方客户端**，包含**移植自它的代码**，因此同样以 **GPL-3.0** 发布。
+> 具体哪些文件有移植关系，见文末的[许可](#许可)一节。
 
 <p align="center">
   <img src="docs/screenshots/01-主页.png" width="19%" />
