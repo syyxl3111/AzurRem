@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AzurPilot 是局域网内的自建服务，地址由用户在「设置」里自己填（例如
+  http://192.168.1.100:25548），走的是明文 HTTP。Android 9+ 默认禁止明文流量，
+  这里显式放开。
+
+  本 App 不具备任何公网能力，仅用于内网工具 —— 也正因如此，代码里**不预设
+  任何服务器地址**：写死一个地址就等于让所有装了本 App 的人去连那一台机器。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
