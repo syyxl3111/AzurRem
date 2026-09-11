@@ -1,0 +1,49 @@
+# ═══════════════════════════════════════════════════════════
+#  换行符与二进制处理
+#
+#  为什么需要这个文件：
+#  这个项目是**跨平台**的 —— 安卓工程要在 Linux/Mac 的 CI 上构建，
+#  而数据桥的 .bat 只能在 Windows 上跑。如果不显式规定，git 会按各人
+#  本机的 core.autocrlf 设置各行其是，结果是：
+#
+#    · `gradlew`（POSIX shell 脚本）被检出成 CRLF →
+#      在 Linux/Mac 上 `./gradlew` 报 `bad interpreter: No such file or directory`
+#    · `.bat` 被检出成 LF → cmd.exe 解析批处理时行为异常
+#
+#  实际发生过：仓库里 `gradlew` 就是带着 248 个 CRLF 提交进去的。
+# ═══════════════════════════════════════════════════════════
+
+# 默认：仓库统一存 LF，检出也保持 LF
+* text=auto eol=lf
+
+# ── Windows 专用脚本：必须 CRLF ──────────────────────────
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# ── 二进制：不做任何换行转换 ─────────────────────────────
+# 少了这一段，git 可能把二进制里的 0x0D0A 当换行改写，文件就废了
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.ttf  binary
+*.otf  binary
+*.woff binary
+*.jar  binary
+*.exe  binary
+*.dll  binary
+*.apk  binary
+*.zip  binary
+*.db   binary
+
+# ── 给 GitHub 语言统计用的标注 ───────────────────────────
+# gradlew / 字体这些不该算进「语言构成」，否则仓库会被显示成 Shell 项目
+AzurPilotMobile/gradlew linguist-vendored
+AzurPilotMobile/gradlew.bat linguist-vendored
+AzurPilotMobile/gradle/wrapper/gradle-wrapper.jar binary linguist-generated
+bridge/azurrem.ico binary
+docs/screenshots/*.png binary
+image/*.png binary
