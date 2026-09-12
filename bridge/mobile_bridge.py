@@ -60,17 +60,22 @@ AzurPilot 手机端 · 只读数据桥（sidecar）
 from __future__ import annotations
 
 import csv
+import hmac
 import io
 import json
 import math
 import os
 import re
+import secrets
 import socket
 import sqlite3
+import string
 import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -130,6 +135,45 @@ HOST = "0.0.0.0"
 # 手机端 App 的默认端口就是 25550（AzurPilotMobile Settings.BRIDGE_PORT），
 # 所以 exe 默认也监听它。25549 上可能还跑着早期版本（只有 /api/history），别用。
 PORT = 25550
+
+# ─────────────────────────────────────────────────────────────
+# 网关：把「只读数据桥」升级成 AzurPilot 的**唯一对外入口**
+#
+#   浏览器 ── GET /      ──→ 极简状态页（已连接 / 失败，请在 App 上查看）
+#   App    ── /mcp/*     ──→ 反代 AzurPilot，服务端注入它的密码
+#   App    ── /api/…     ──→ 那两个统计接口，同样注入密码
+#   App    ── 其余 9 条  ──→ 自己读本地库（就是原来桥干的事）
+#
+# 这样一来：App 只需要一个地址 + 一个密码；AzurPilot 不必再直接暴露公网；
+# 而且 AzurPilot 以后改自己的接口（比如 2026-09-11 那次给 MCP 加鉴权），
+# 要改的是这里，不是 App。
+# ─────────────────────────────────────────────────────────────
+
+# 网关**自己的**密码，和 AzurPilot 的 WebUI 密码刻意分开：
+# 网关密码是公网入口的钥匙，AzurPilot 的密码是服务端最后一道门。
+# 两个混用，等于把最后一道门也一起交出去了。
+GATEWAY_KEY_PATH = APP_DIR / "azurrem-gateway.key"
+
+# 接受凭据的查询参数名 —— 与 AzurPilot `module/webui/mcp_auth.py` 的
+# QUERY_KEY_NAMES 保持一致，同一套客户端习惯两边通用。
+QUERY_KEY_NAMES = ("key", "api_key", "token")
+
+# 反代到 AzurPilot 的超时。SSE 是长连接，单列一个宽得多的值：客户端
+# 每轮只连几秒，但中间可能长时间没有数据帧，不能用普通请求的超时掐它。
+UPSTREAM_TIMEOUT = 8.0
+UPSTREAM_SSE_TIMEOUT = 300.0
+
+# 反代**白名单**：只放这三个前缀过去。
+#
+# ★ 这是安全边界，不是偷懒。AzurPilot 的 FastAPI 上还挂着
+#   `/api/launcher/startup`（POST，能拉起进程）、`/api/deploy/*`、
+#   `/api/import_legacy_upload`、以及两个 WebSocket 控制通道
+#   （`/ws/live_control` 是**真能点屏幕**的）。一旦做成"整个站点通用反代"，
+#   这些会一起被搬上公网。App 需要的只有 MCP（它自己就是完整控制面）
+#   加两个只读统计接口，所以这里按前缀白名单放行。
+PROXY_PREFIXES = ("/mcp/",)
+PROXY_PATHS = ("/api/ap_timeline", "/api/cl1_stats")
+
 
 DEFAULT_INSTANCE = "alas"
 DEFAULT_HOURS = 168          # 7 天
@@ -2002,18 +2046,300 @@ ROUTES = {
 }
 
 
+# ─────────────────────────────────────────────────────────────
+# 网关：自己的密码 / 上游配置 / 鉴权 / 状态页
+# ─────────────────────────────────────────────────────────────
+
+#: 网关自己的密码。模块加载后由 main() 用 load_or_create_gateway_key() 灌进来。
+GATEWAY_KEY = ""
+
+
+def load_or_create_gateway_key() -> str:
+    """读网关密码；没有就生成一个 32 位的写下来。
+
+    和 AzurPilot 生成 `password.txt` 是同一个思路：用户不必自己发明密码，
+    但必须**拿得到**它 —— 所以窗口里会显示出来，可选中复制。
+    """
+    try:
+        existing = GATEWAY_KEY_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        existing = ""
+    if existing:
+        return existing
+
+    alphabet = string.ascii_letters + string.digits
+    key = "".join(secrets.choice(alphabet) for _ in range(32))
+    try:
+        GATEWAY_KEY_PATH.write_text(key + "\n", encoding="utf-8")
+    except OSError as exc:
+        # 写不下来（只读目录 / 权限）也不该让网关起不来：用内存里这一把，
+        # 只是下次启动会换一把。窗口里那句提示会说清楚。
+        log(f"[!] 网关密码写入失败（{exc}），本次使用临时密码")
+    return key
+
+
+# deploy.yaml 里只要两个值：WebuiPort 和 Password。
+# 刻意不引 yaml —— 本文件是纯标准库（要打包成 exe），而这两个都是单行标量，
+# 正则足够；注释行以 # 开头，不会被下面这两个表达式命中。
+_DEPLOY_PORT_RE = re.compile(r"^\s*WebuiPort:\s*(\d+)", re.M)
+_DEPLOY_PASSWORD_RE = re.compile(r"^\s*Password:\s*(\S.*?)\s*$", re.M)
+
+_deploy_cache = {"mtime": None, "port": 25548, "password": ""}
+
+
+def _parse_deploy(path) -> tuple:
+    """从 deploy.yaml 里抠出 (WebuiPort, Password)。"""
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return 25548, ""
+
+    port = 25548
+    hit = _DEPLOY_PORT_RE.search(text)
+    if hit:
+        try:
+            port = int(hit.group(1))
+        except ValueError:
+            port = 25548
+
+    password = ""
+    hit = _DEPLOY_PASSWORD_RE.search(text)
+    if hit:
+        password = hit.group(1).strip()
+        if len(password) >= 2 and password[0] == password[-1] and password[0] in "\"'":
+            password = password[1:-1]          # Password: "xxx"
+        else:
+            password = password.split(" #", 1)[0].strip()   # 行尾注释
+
+    # deploy.yaml 没写密码、但 AzurPilot 监听公网时，它会自动生成一个写进
+    # 根目录的 password.txt。取值顺序与 module/webui/mcp_auth.py 保持一致。
+    if not password:
+        try:
+            password = (ROOT / "password.txt").read_text(encoding="utf-8").strip()
+        except OSError:
+            password = ""
+
+    return port, password
+
+
+def deploy_config() -> tuple:
+    """(WebuiPort, Password)，按 mtime 缓存。
+
+    缓存是为了别每个请求都读一次文件；带 mtime 是为了用户改了 deploy.yaml
+    并重启 AzurPilot 之后，网关**不用重启**也能跟上。
+    """
+    path = CONFIG_DIR / "deploy.yaml"
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = None
+    if _deploy_cache["mtime"] != mtime:
+        port, password = _parse_deploy(path)
+        _deploy_cache.update(mtime=mtime, port=port, password=password)
+    return _deploy_cache["port"], _deploy_cache["password"]
+
+
+def _extract_credential(handler) -> str:
+    """从请求头或查询参数里取候选凭据。
+
+    三种传法与 AzurPilot 的 `mcp_auth.extract_credential()` 一致，这样同一套
+    客户端习惯两边通用；`?key=` 那条是留给"只能填 URL 的客户端"的。
+    """
+    auth = handler.headers.get("Authorization") or ""
+    if auth[:7].lower() == "bearer ":
+        candidate = auth[7:].strip()
+        if candidate:
+            return candidate
+    header_key = (handler.headers.get("X-API-Key") or "").strip()
+    if header_key:
+        return header_key
+    query = parse_qs(urlparse(handler.path).query)
+    for name in QUERY_KEY_NAMES:
+        values = query.get(name)
+        if values and values[0]:
+            return values[0]
+    return ""
+
+
+def _authorized(handler) -> bool:
+    """常数时间比较，避免用响应时间逐位试出密码。
+
+    用 bytes 比而不是 str：`hmac.compare_digest` 对 str 只接受 ASCII，
+    密码里出现中文会直接抛 TypeError。
+    """
+    candidate = _extract_credential(handler)
+    if not candidate or not GATEWAY_KEY:
+        return False
+    return hmac.compare_digest(
+        candidate.encode("utf-8"), GATEWAY_KEY.encode("utf-8")
+    )
+
+
+def _probe_upstream() -> tuple:
+    """探一次 AzurPilot，给状态页用。返回 (状态码, 标题, 说明)。
+
+    分三种失败，因为**用户要做的事完全不同**：
+      ap_down  → 去网关窗口点「启动 AzurPilot」
+      key_bad  → 密码不一致，重启 AzurPilot 同步
+      error    → 其它，看说明
+    混成一句"连接失败"的话，用户只能干瞪眼。
+    """
+    port, password = deploy_config()
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.settimeout(2.0)
+    try:
+        if probe.connect_ex(("127.0.0.1", port)) != 0:
+            return (
+                "ap_down",
+                "没连上 AzurPilot",
+                f"本机 {port} 端口没有响应。请在电脑上的网关窗口点「启动 AzurPilot」。",
+            )
+    finally:
+        probe.close()
+
+    request = urllib.request.Request(f"http://127.0.0.1:{port}/api/cl1_stats")
+    if password:
+        request.add_header("Authorization", f"Bearer {password}")
+    try:
+        with urllib.request.urlopen(request, timeout=4.0) as resp:
+            if resp.status == 200:
+                return ("ok", "已连接 AzurPilot", "请在 App 上查看数据。")
+            return ("error", "AzurPilot 返回了意外状态", f"HTTP {resp.status}")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            return (
+                "key_bad",
+                "AzurPilot 拒了密码",
+                "config\\deploy.yaml 里的 Password 与运行中的 AzurPilot 不一致。"
+                "重启一次 AzurPilot 让两边同步即可。",
+            )
+        return ("error", "AzurPilot 报错", f"HTTP {exc.code}")
+    except Exception as exc:
+        return ("error", "探测 AzurPilot 失败", f"{type(exc).__name__}: {exc}")
+
+
+#: 状态 → 圆点颜色 / 角标
+_STATUS_LOOK = {
+    "ok": ("#28C840", "运行中"),
+    "ap_down": ("#FF9F0A", "未连接"),
+    "key_bad": ("#FF3B30", "鉴权失败"),
+    "error": ("#FF3B30", "出错"),
+}
+
+# 刻意不用任何外部资源（字体 / CDN）：这一页要在内网、公网、手机浏览器上
+# 都秒开，断网时也得显示得出来。所以样式和内联字体栈都写死在里面。
+_STATUS_TEMPLATE = """<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>AzurRem 网关</title>
+<style>
+  html,body{margin:0;height:100%}
+  body{display:grid;place-items:center;background:#F2F2F7;color:#1D1D1F;
+       font:16px/1.6 -apple-system,"Microsoft YaHei UI","PingFang SC",sans-serif}
+  .card{background:#fff;border-radius:18px;padding:30px 30px 26px;max-width:420px;
+        margin:20px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .row{display:flex;align-items:center;gap:9px}
+  .dot{width:11px;height:11px;border-radius:50%;background:__COLOR__;flex:none}
+  .tag{font-size:13px;color:#8A8A8E}
+  h1{font-size:21px;margin:14px 0 6px}
+  p{margin:0;color:#4A4A4F;font-size:15px}
+  .foot{margin-top:20px;padding-top:14px;border-top:1px solid #EDEDF0;
+        font-size:12px;color:#A0A0A5;line-height:1.7}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="row"><span class="dot"></span><span class="tag">AzurRem 网关 · __TAG__</span></div>
+    <h1>__TITLE__</h1>
+    <p>__DETAIL__</p>
+    <div class="foot">数据与操作都在 AzurRem App 里。<br>这一页只报告网关与 AzurPilot 的连接状态。</div>
+  </div>
+</body>
+</html>
+"""
+
+
+def _status_html() -> str:
+    state, title, detail = _probe_upstream()
+    color, tag = _STATUS_LOOK.get(state, _STATUS_LOOK["error"])
+    return (
+        _STATUS_TEMPLATE
+        .replace("__COLOR__", color)
+        .replace("__TAG__", tag)
+        .replace("__TITLE__", title)
+        .replace("__DETAIL__", detail)
+    )
+
+
+
+def _is_proxy_path(path: str) -> bool:
+    """这个路径要不要转给 AzurPilot。
+
+    ★ **白名单，不是通配**。理由见 PROXY_PREFIXES 上面那段：AzurPilot 的
+      FastAPI 上还挂着 `/api/launcher/startup`（POST，能拉起进程）、
+      `/api/import_legacy_upload`（能传文件）、以及 `/ws/live_control`
+      （**真能点屏幕**）。做成"整个站点通用反代"等于把它们一起搬上公网。
+      App 需要的只有 MCP（它本身就是完整控制面）+ 两个只读统计接口。
+    """
+    return path.startswith(PROXY_PREFIXES) or path in PROXY_PATHS
+
+
 class Handler(BaseHTTPRequestHandler):
-    server_version = "AzurPilotMobileBridge/1.2"
+    server_version = "AzurRemGateway/2.0"
+
+    # ★ 必须是 HTTP/1.1，不能用默认的 1.0。
+    #   MCP 的 SSE 是**长连接 + 事先不知道长度**，只有 1.1 才能用 chunked
+    #   边收边发；1.0 只能靠"关连接"表示结束，中间隔着 Cloudflare 时不稳。
+    #   代价：每个响应都必须自带 Content-Length 或 chunked —— 本类的出口
+    #   全部走 _send / _send_html / _send_text / _proxy，已经覆盖到了。
+    protocol_version = "HTTP/1.1"
+
+    # ---- 响应工具 ----
 
     def _send(self, payload: dict, status: int = 200) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_html(self, html: str, status: int = 200) -> None:
+        body = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_text(self, text: str, status: int = 200) -> None:
+        body = text.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _require_auth(self) -> bool:
+        """没通过就自己回 401 并返回 False，调用方直接 return。"""
+        if _authorized(self):
+            return True
+        # 措辞与 AzurPilot 的 mcp_auth 保持一致，两边行为对得上好排查
+        self._send_text(
+            "Unauthorized: 缺少或无效的凭据。请携带 "
+            "Authorization: Bearer <网关密码>、X-API-Key 或 ?key=<网关密码>。",
+            status=401,
+        )
+        return False
+
+    # ---- 路由 ----
 
     def do_GET(self) -> None:  # noqa: N802  (BaseHTTPRequestHandler 的命名约定)
         STATS["requests"] = STATS.get("requests", 0) + 1   # 挂件里显示的请求计数
@@ -2021,15 +2347,35 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
         path = parsed.path.rstrip("/") or "/"
 
+        # 状态页是**唯一不鉴权的出口**。它只报"网关和 AzurPilot 连上没有"，
+        # 不含实例数据、不含资源数字，给人看到也无所谓；而正因为不鉴权，
+        # 它才能用来排查"密码是不是填错了 / AP 起来了没"。
+        if path == "/":
+            try:
+                self._send_html(_status_html())
+            except Exception as exc:
+                self._send_text(f"状态页出错：{type(exc).__name__}: {exc}", status=500)
+            return
+
+        if not self._require_auth():
+            return
+
         try:
+            if _is_proxy_path(path):
+                self._proxy("GET")
+                return
+
             if path in ("/api/health", "/health"):
+                port, password = deploy_config()
                 self._send({
                     "success": True,
-                    "service": "azurpilot-mobile-bridge",
-                    "version": "1.2",
-                    # 实际生效的项目根目录（--root 或脚本所在目录），排查用
+                    "service": "azurrem-gateway",
+                    "version": "2.0",
+                    # 实际生效的项目根目录（--root 或自动发现），排查用
                     "root": str(ROOT),
                     "cwd": os.getcwd(),
+                    "upstream_port": port,
+                    "upstream_password_set": bool(password),
                     "db_exists": DB_PATH.exists(),
                     "cl1_db_exists": CL1_DB_PATH.exists(),
                     "menu_exists": MENU_PATH.exists(),
@@ -2037,7 +2383,8 @@ class Handler(BaseHTTPRequestHandler):
                     "meow_csv_exists": MEOW_CSV.exists(),
                     "log_dir_exists": LOG_DIR.exists(),
                     "cl1_log_exists": CL1_LOG_DIR.exists(),
-                    "routes": ["/api/health"] + sorted(ROUTES),
+                    "routes": ["/", "/api/health"] + sorted(ROUTES),
+                    "proxied": list(PROXY_PREFIXES) + list(PROXY_PATHS),
                     "time": datetime.now().isoformat(),
                 })
                 return
@@ -2051,6 +2398,117 @@ class Handler(BaseHTTPRequestHandler):
 
         except Exception as exc:  # 保证任何异常都以 JSON 返回，方便手机端显示
             self._send({"success": False, "error": f"{type(exc).__name__}: {exc}"}, status=500)
+
+    def do_POST(self) -> None:  # noqa: N802
+        STATS["requests"] = STATS.get("requests", 0) + 1
+        path = urlparse(self.path).path.rstrip("/") or "/"
+
+        if not self._require_auth():
+            return
+
+        if not _is_proxy_path(path):
+            # 网关自己**没有任何写接口**：9 条桥路由全是只读，需要写的
+            # （启停、执行任务、改配置）都走 /mcp/* 转给 AzurPilot。
+            # 所以这里直接 405，不留想象空间。
+            self._send_text("Method Not Allowed", status=405)
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        body = self.rfile.read(length) if length > 0 else b""
+        self._proxy("POST", body)
+
+    # ---- 反代 ----
+
+    def _proxy(self, method: str, body: bytes = None) -> None:
+        """原样转给 AzurPilot，并在**服务端**注入它的密码。
+
+        这是整个网关的关键一步：App 只认识网关密码，AzurPilot 的密码始终
+        留在电脑上，不用填进手机 —— 公网入口那把钥匙和最后一道门是分开的。
+        """
+        port, password = deploy_config()
+        target = f"http://127.0.0.1:{port}{self.path}"
+
+        request = urllib.request.Request(target, data=body, method=method)
+        # 只挑必要的头转过去。Host / Connection / Content-Length 交给 urllib
+        # 自己算 —— 照抄客户端的反而会打架。
+        # **刻意不转 Accept-Encoding**：不转的话上游不会 gzip，我们回吐的就是
+        # 明文，省掉一层解压/再压缩，也就不会出现 Content-Encoding 对不上的问题。
+        accept = self.headers.get("Accept")
+        if accept:
+            request.add_header("Accept", accept)
+        ctype = self.headers.get("Content-Type")
+        if ctype:
+            request.add_header("Content-Type", ctype)
+        if password:
+            request.add_header("Authorization", f"Bearer {password}")
+
+        # SSE 是长连接：普通请求 8 秒足够，长连接必须给宽得多，
+        # 否则 AzurPilot 一段空闲就把流掐了。
+        is_stream = "text/event-stream" in (accept or "")
+        timeout = UPSTREAM_SSE_TIMEOUT if is_stream else UPSTREAM_TIMEOUT
+
+        try:
+            upstream = urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            # 上游的 4xx/5xx **原样透传**，尤其 401 —— App 靠它区分
+            # "密码错"和"连不上"，这两件事用户要做的事完全不同。
+            payload = exc.read()
+            ctype = exc.headers.get("Content-Type") or "text/plain"
+            self.send_response(exc.code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        except Exception as exc:
+            self._send(
+                {"success": False,
+                 "error": f"无法连接 AzurPilot（127.0.0.1:{port}）："
+                          f"{type(exc).__name__}: {exc}"},
+                status=502,
+            )
+            return
+
+        try:
+            self.send_response(upstream.status)
+            for name, value in upstream.headers.items():
+                lower = name.lower()
+                # 长度和连接方式由我们自己决定 —— 照抄会和下面的 chunked 打架
+                if lower in ("transfer-encoding", "connection", "content-length"):
+                    continue
+                self.send_header(name, value)
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+
+            # read1 而不是 read：read(n) 会一直等到凑满 n 字节，
+            # SSE 这种"来一帧就得立刻发出去"的场景会被它卡住。
+            while True:
+                chunk = upstream.read1(65536)
+                if not chunk:
+                    break
+                self.wfile.write(b"%x\r\n" % len(chunk))
+                self.wfile.write(chunk)
+                self.wfile.write(b"\r\n")
+                self.wfile.flush()
+            self.wfile.write(b"0\r\n\r\n")
+            self.wfile.flush()
+
+        except (BrokenPipeError, ConnectionResetError):
+            # 客户端先走了。App 每轮 MCP 都是"开一条流、用完即关"，
+            # 所以这是**正常路径**，不该记成错误。
+            closed = getattr(self, "close_connection", None)
+            if closed is not None:
+                self.close_connection = True
+        except Exception as exc:
+            log(f"[!] 反代中断：{type(exc).__name__}: {exc}")
+        finally:
+            try:
+                upstream.close()
+            except Exception:
+                pass
 
     def log_message(self, fmt: str, *args) -> None:
         # 默认实现会往 stderr 刷访问日志，这里压掉，只在出错时才有噪音
@@ -3152,6 +3610,25 @@ class BridgeWindow:
         self.entry_url.insert(0, self.state.get("url", ""))
         self.entry_url.configure(state="readonly")
         self.entry_url.bind("<Control-c>", lambda _e: self.entry_url.event_generate("<<Copy>>"))
+        self.entry_url.bind("<Control-a>", lambda _e: self._select_all(self.entry_url))
+
+        # 第二行：网关密码。**可编辑**。
+        #
+        # 默认是首次运行自动生成的 32 位随机串，但用户想换成自己记得住的就让他换
+        # （改完写回 azurrem-gateway.key 并立刻生效，同时提醒 App 那边也要改）。
+        # 前缀「密码」单独做一个 Label 而不是塞进 Entry 里 —— Entry 是可编辑的，
+        # 把说明文字混进去，用户一改就把说明也改掉了。
+        self.lbl_key = tk.Label(
+            self.frame, text="密码", bg=CARD, fg=SUBTEXT, font=(FONT, 9), anchor="w",
+        )
+        self.entry_key = tk.Entry(
+            self.frame, bg=CARD, fg=TEXT, relief="flat", bd=0, highlightthickness=0,
+            font=(FONT, 9), selectbackground="#B3D7FF", selectforeground=TEXT,
+        )
+        self.entry_key.insert(0, str(self.state.get("gateway_key") or ""))
+        self.entry_key.bind("<Return>", self.on_commit_key)
+        self.entry_key.bind("<FocusOut>", self.on_commit_key)
+        self.entry_key.bind("<Control-a>", lambda _e: self._select_all(self.entry_key))
 
         # 第二行：手动启动 AzurPilot + 选目录（桥在不在跑都不影响这两个按钮）
         self.btn_start_ap = PillButton(
@@ -3191,8 +3668,8 @@ class BridgeWindow:
         )
 
         # 无边框窗口要自己处理拖动（Entry 上不绑，否则没法选文字复制）
-        for widget in (self.frame, self.lbl_title, self.lbl_root, self.lbl_stats,
-                       self.lbl_detail, self.lbl_hint, self.lbl_footer):
+        for widget in (self.frame, self.lbl_title, self.lbl_key, self.lbl_root,
+                       self.lbl_stats, self.lbl_detail, self.lbl_hint, self.lbl_footer):
             widget.bind("<Button-1>", self._drag_start)
             widget.bind("<B1-Motion>", self._drag_move)
 
@@ -3201,6 +3678,54 @@ class BridgeWindow:
         if not root:
             return "AzurPilot：没找到（可用右侧文件夹按钮指定）"
         return f"AzurPilot：{self._shorten(str(root))}"
+
+    # ---- 网关密码：允许用户改成自己记得住的 ----
+
+    def on_commit_key(self, _event=None) -> None:
+        """密码框回车 / 失焦：校验 → 落盘 → 立刻生效。
+
+        为什么不给"随便填"：网关是**公网入口**，空密码等于对所有人开门。
+        所以空的、太短的都直接还原并说明原因，不让用户糊里糊涂把自己敞开。
+        """
+        global GATEWAY_KEY
+        try:
+            candidate = self.entry_key.get().strip()
+        except tk.TclError:
+            return
+        current = str(self.state.get("gateway_key") or "")
+        if candidate == current:
+            return
+
+        if not candidate:
+            self._write_entry(self.entry_key, current)
+            self.set_hint("密码不能为空 —— 空密码等于对所有人开门，已还原", error=True)
+            return
+        if len(candidate) < 8:
+            self._write_entry(self.entry_key, current)
+            self.set_hint("密码太短了（至少 8 位），已还原", error=True)
+            return
+
+        try:
+            GATEWAY_KEY_PATH.write_text(candidate + "\n", encoding="utf-8")
+        except OSError as exc:
+            self._write_entry(self.entry_key, current)
+            self.set_hint(f"密码写不进 {GATEWAY_KEY_PATH.name}：{exc}", error=True)
+            return
+
+        GATEWAY_KEY = candidate
+        self.state["gateway_key"] = candidate
+        log(f"网关密码已更新（{len(candidate)} 位）")
+        # 日志里**不写密码本身** —— AzurRemBridge.log 是排查时会被贴出来的东西
+        self.set_hint("密码已更新，立刻生效 —— App 里的「服务端密码」也要改成这个")
+
+    @staticmethod
+    def _select_all(entry) -> None:
+        """readonly Entry 里 Ctrl+A 默认不生效，得自己绑。"""
+        try:
+            entry.selection_range(0, "end")
+            entry.icursor("end")
+        except tk.TclError:
+            pass
 
     @staticmethod
     def _shorten(text: str, limit: int = 46) -> str:
@@ -3221,7 +3746,10 @@ class BridgeWindow:
         self.dot_row.place(relx=1.0, x=-12, y=8, anchor="ne")
         y = self._stack([self.lbl_title], 14, 8, gap=5)
         self.entry_url.place(x=14, y=y, width=self.COMPACT[0] - 28, height=22)
-        y += 22 + 5
+        y += 22 + 2
+        self.lbl_key.place(x=14, y=y, width=32, height=20)
+        self.entry_key.place(x=48, y=y, width=self.COMPACT[0] - 28 - 34, height=20)
+        y += 20 + 5
         self.btn_start_ap.place(x=14, y=y)
         self.btn_pick_root.place(x=132, y=y)
         y += 26 + 5
@@ -3235,7 +3763,10 @@ class BridgeWindow:
         self.dot_row.place(relx=1.0, x=-14, y=12, anchor="ne")
         y = self._stack([self.lbl_title], 16, 10, gap=6)
         self.entry_url.place(x=16, y=y, width=self.EXPANDED[0] - 32, height=24)
-        y += 24 + 6
+        y += 24 + 3
+        self.lbl_key.place(x=16, y=y, width=36, height=21)
+        self.entry_key.place(x=54, y=y, width=self.EXPANDED[0] - 32 - 38, height=21)
+        y += 21 + 6
         self.btn_start_ap.place(x=16, y=y)
         self.btn_pick_root.place(x=136, y=y)
         y += 26 + 6
@@ -3298,7 +3829,15 @@ class BridgeWindow:
             return 80, 64
 
     def _move_to_default_position(self) -> None:
-        width, height = self.COMPACT
+        """把窗口挪回屏幕右上角 —— **只挪位置，不动尺寸**。
+
+        ★ 原来这里 `width, height = self.COMPACT`，等于每次归位都把高度压回
+          126。而 126 是按**上一版**布局定的最小值：紧凑视图里加一行控件之后，
+          `_place_compact` 明明已经算出 146 并设好了，紧接着归位又打回 126，
+          结果第三行提示被窗口底边切掉（GUI 自测里「内容底边 ≤ 窗口高」那条
+          抓的就是这个）。尺寸归布局管，这里只负责位置。
+        """
+        width, height = getattr(self, "_last_size", None) or self.COMPACT
         x, y = self._default_position(width)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
         self.root.update_idletasks()
@@ -3609,15 +4148,15 @@ class BridgeWindow:
         self.state["server"] = new_server
         self.state["root"] = ROOT
         self.state["ok"] = True
-        self.state["title"] = "数据桥已启动"
+        self.state["title"] = "网关已启动"
         self.state["url"] = _url_text(port)
         threading.Thread(
             target=new_server.serve_forever, name="bridge-http", daemon=True
         ).start()
 
         # 3) 界面跟着变（失败态也能变成已启动态）
-        self.state["detail"] = "手机端「设置 -> 数据桥地址」填这个（可选中复制）："
-        self.lbl_title.configure(text="数据桥已启动", fg=TEXT)
+        self.state["detail"] = "手机端 App「设置 → 服务器地址」填上面这个（可选中复制）："
+        self.lbl_title.configure(text="网关已启动", fg=TEXT)
         self.lbl_detail.configure(text=self.state["detail"])
         self._set_entry(self.state["url"])
         self.lbl_root.configure(text=self._root_text())
@@ -3625,14 +4164,26 @@ class BridgeWindow:
         log(f"数据桥已切换到新目录：{ROOT}（{self.state['url']}）")
         return True
 
-    def _set_entry(self, text: str) -> None:
+    @staticmethod
+    def _write_entry(entry, text: str) -> None:
+        """往 Entry 里写值，尊重它自己的 readonly 状态。
+
+        entry_url 是只读展示，entry_key 是可编辑的 —— 同一段代码处理两者，
+        免得各写一份、改一处忘一处。
+        """
         try:
-            self.entry_url.configure(state="normal")
-            self.entry_url.delete(0, "end")
-            self.entry_url.insert(0, text)
-            self.entry_url.configure(state="readonly", fg=TEXT)
+            readonly = str(entry.cget("state")) == "readonly"
+            if readonly:
+                entry.configure(state="normal")
+            entry.delete(0, "end")
+            entry.insert(0, text)
+            if readonly:
+                entry.configure(state="readonly", fg=TEXT)
         except tk.TclError as exc:
-            log(f"更新地址显示失败：{exc}")
+            log(f"更新输入框失败：{exc}")
+
+    def _set_entry(self, text: str) -> None:
+        self._write_entry(self.entry_url, text)
 
     # ---- 自动拉起 AP 的开关 ----
 
@@ -3649,7 +4200,24 @@ class BridgeWindow:
         """第三行小字：启动结果、切换结果、报错都走这里，不弹模态框。"""
         log(f"提示：{text}")
         try:
+            previous = str(self.lbl_hint.cget("text") or "")
             self.lbl_hint.configure(text=text, fg=ERR_RED if error else SUBTEXT)
+        except tk.TclError:
+            return
+        # ★ 提示文字的行数会变（一行 ↔ 两行 ↔ 三行），窗口高度必须跟着重算 ——
+        #   原来只改文字不重排，窗口仍是按**上一版提示**（往往还是空的）算的高度，
+        #   长提示就被窗口底边切掉了。GUI 自测里那条
+        #   「紧凑窗口里第二/三行没有被切掉」抓的就是这个。
+        if previous != text:
+            self._relayout()
+
+    def _relayout(self) -> None:
+        """按当前展开状态重排一次。文字变化后调用，让窗口自己长到够高。"""
+        try:
+            if getattr(self, "expanded", False):
+                self._place_expanded()
+            else:
+                self._place_compact()
         except tk.TclError:
             pass
 
@@ -3735,6 +4303,8 @@ def _build_error_state(title: str, detail: str, port: int, headless: bool) -> di
         "root": None, "root_source": "", "port": port,
         "url": "", "server": None, "hint": detail.splitlines()[0] if detail else "",
         "headless": headless, "launch_ap": False,
+        # 出错态也把密码带上：窗口里那一行要能显示，用户才知道 App 该填什么
+        "gateway_key": GATEWAY_KEY,
     }
 
 
@@ -3754,7 +4324,7 @@ def _run_window(state: dict) -> int:
 
 
 def main(argv=None) -> int:
-    global PORT
+    global PORT, GATEWAY_KEY
 
     argv = list(sys.argv[1:] if argv is None else argv)
     _console_setup()
@@ -3765,6 +4335,12 @@ def main(argv=None) -> int:
     if any(item in ("-h", "--help", "/?") for item in argv):
         log(_usage())
         return 0
+
+    # 网关密码：与 AzurPilot 的密码无关，是这个入口自己的钥匙。
+    # 刻意**不写进日志** —— AzurRemBridge.log 是 issue 模板里会让人贴出来的东西，
+    # 密码落进去等于随手泄露。窗口里能看能复制，文件也就在 exe 旁边。
+    GATEWAY_KEY = load_or_create_gateway_key()
+    log(f"网关密码已就绪（{len(GATEWAY_KEY)} 位，见 {GATEWAY_KEY_PATH.name}）")
 
     try:
         root_arg, port, launch_ap, headless = _parse_args(argv)
@@ -3857,13 +4433,14 @@ def main(argv=None) -> int:
     thread.start()
 
     state = {
-        "ok": True, "title": "数据桥已启动",
-        "detail": "手机端「设置 -> 数据桥地址」填这个（可选中复制）：",
+        "ok": True, "title": "网关已启动",
+        "detail": "手机端 App「设置 → 服务器地址」填上面这个（可选中复制）：",
         "root": ROOT, "root_source": source, "port": PORT, "url": url,
+        "gateway_key": GATEWAY_KEY,
         "server": server, "headless": headless, "launch_ap": launch_ap,
         "hint": "正在检查 AzurPilot ..." if launch_ap else "已关闭自动拉起，可手动点左侧按钮",
     }
-    log(f"数据桥已启动：{url}（root={ROOT}，来源={source}）")
+    log(f"网关已启动：{url}（root={ROOT}，来源={source}）")
 
     if headless:
         if launch_ap:

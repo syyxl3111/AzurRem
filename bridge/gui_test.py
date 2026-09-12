@@ -32,6 +32,12 @@ HERE = Path(__file__).resolve().parent
 PORT = 25563            # 不碰 25550（那上面可能跑着真的桥）
 TRAY_PORT = 25564       # 「托盘菜单退出」那条路单独用一个口，别跟上面互相干扰
 
+# 网关密码。进程内测试直接设模块级变量，省得去读 azurrem-gateway.key。
+# ★ 2.0 起网关除状态页外的每个出口都要凭据，所以下面所有 /api/* 请求都得带上它 ——
+#   顺带也就验证了鉴权确实生效（下面专门有一条「不带凭据要 401」）。
+TEST_KEY = "test-gateway-key-0123456789"
+AUTH = f"key={TEST_KEY}"
+
 WM_LBUTTONUP = 0x0202
 WM_COMMAND = 0x0111
 
@@ -136,6 +142,7 @@ def main() -> int:
     print("=" * 70)
 
     # 真起一个 HTTP 服务，才能验证「关窗口 = 停桥」和「收进托盘时接口照常」
+    module.GATEWAY_KEY = TEST_KEY
     server = module._bind_server(PORT)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -147,10 +154,11 @@ def main() -> int:
     # 否则 /api/health 报的 root 会是默认值（脚本自己所在的 bridge\）
     module.configure_root(Path(r"D:\Tools\AzurPilot"))
     state = {
-        "ok": True, "title": "数据桥已启动",
-        "detail": "手机端「设置 -> 数据桥地址」填这个（可选中复制）：",
+        "ok": True, "title": "网关已启动",
+        "detail": "手机端 App「设置 → 服务器地址」填上面这个（可选中复制）：",
         "root": Path(r"D:\Tools\AzurPilot"), "root_source": "测试",
         "port": PORT, "url": f"http://{ip}:{PORT}",
+        "gateway_key": TEST_KEY,
         "server": server, "headless": False, "launch_ap": False,
         "ap_status": "已关闭「顺带启动 AzurPilot」",
     }
@@ -164,6 +172,7 @@ def main() -> int:
     def visible_rows():
         rows = []
         for name, wid in (('title', window.lbl_title), ('entry', window.entry_url),
+                          ('lbl_key', window.lbl_key), ('entry_key', window.entry_key),
                           ('btn_start_ap', window.btn_start_ap), ('btn_pick', window.btn_pick_root),
                           ('hint', window.lbl_hint), ('detail', window.lbl_detail),
                           ('root', window.lbl_root), ('stats', window.lbl_stats),
@@ -194,10 +203,15 @@ def main() -> int:
     # 1) 初始状态
     check("默认是紧凑尺寸 240x126+",
           root.geometry().startswith("240x") and root.winfo_height() >= 126, root.geometry())
-    check("标题是「数据桥已启动」", window.lbl_title.cget("text") == "数据桥已启动")
+    check("标题是「网关已启动」", window.lbl_title.cget("text") == "网关已启动")
     check("标题是黑色（正常态）", window.lbl_title.cget("fg") == module.TEXT)
     check("地址是 readonly Entry（可选中复制）", window.entry_url.cget("state") == "readonly")
     check("地址内容正确", window.entry_url.get() == f"http://{ip}:{PORT}", window.entry_url.get())
+    check("密码框**可编辑**（默认随机 32 位，但允许用户自己改）",
+          window.entry_key.cget("state") == "normal", window.entry_key.cget("state"))
+    check("密码框显示的是当前网关密码",
+          window.entry_key.get() == TEST_KEY, window.entry_key.get())
+    check("密码框左边有「密码」标签", window.lbl_key.cget("text") == "密码")
     check("紧凑模式下不显示细节行", not window.lbl_root.winfo_ismapped())
     check("第二行【启动 AzurPilot】在紧凑模式下可见", window.btn_start_ap.winfo_ismapped())
     check("第二行文件夹按钮在紧凑模式下可见", window.btn_pick_root.winfo_ismapped())
@@ -266,14 +280,80 @@ def main() -> int:
 
     # 4) 蓝点 → 收进系统托盘（HTTP 必须继续响应）
     import json as _json
+    import urllib.error
     import urllib.request
 
     def health_ok(port):
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=5) as resp:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/health?{AUTH}", timeout=5
+            ) as resp:
                 return resp.status == 200 and _json.load(resp).get("success") is True
         except Exception:
             return False
+
+    def status_code(url):
+        try:
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                return resp.status
+        except urllib.error.HTTPError as exc:
+            return exc.code
+        except Exception:
+            return -1
+
+    def _post_code(url, query):
+        try:
+            req = urllib.request.Request(f"{url}?{query}", data=b"{}", method="POST")
+            req.add_header("Content-Type", "application/json")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return resp.status
+        except urllib.error.HTTPError as exc:
+            return exc.code
+        except Exception:
+            return -1
+
+    # 4a) 鉴权：网关对外**只有状态页**是不鉴权的
+    check("不带凭据访问 /api/health → 401",
+          status_code(f"http://127.0.0.1:{PORT}/api/health") == 401)
+    check("带对凭据访问 /api/health → 200", health_ok(PORT))
+    check("凭据写错 → 401",
+          status_code(f"http://127.0.0.1:{PORT}/api/health?key=wrong") == 401)
+    check("状态页 / 不需要凭据（它就是拿来排查密码问题的）",
+          status_code(f"http://127.0.0.1:{PORT}/") == 200)
+    check("网关没有写接口：POST 一个只读路径 → 405",
+          _post_code(f"http://127.0.0.1:{PORT}/api/health", AUTH) == 405)
+
+    # 4b) 网关密码可以自己改：校验 → 落盘 → 立刻生效
+    key_path = module.GATEWAY_KEY_PATH
+    key_backup = key_path.read_text(encoding="utf-8") if key_path.is_file() else None
+
+    def try_set_key(value):
+        window.entry_key.delete(0, "end")
+        window.entry_key.insert(0, value)
+        window.on_commit_key()
+        return window.entry_key.get()
+
+    try:
+        check("改成空 → 还原并拒绝（空密码等于对所有人开门）",
+              try_set_key("") == TEST_KEY, window.entry_key.get())
+        check("改成 3 位 → 还原并拒绝", try_set_key("abc") == TEST_KEY)
+        check("改成合法值 → 接受", try_set_key("my-own-gateway-password") == "my-own-gateway-password")
+        check("写进了 azurrem-gateway.key",
+              key_path.read_text(encoding="utf-8").strip() == "my-own-gateway-password")
+        check("模块级 GATEWAY_KEY 立刻生效（不用重启）",
+              module.GATEWAY_KEY == "my-own-gateway-password")
+        check("新密码立刻能过鉴权",
+              status_code(f"http://127.0.0.1:{PORT}/api/health?key=my-own-gateway-password") == 200)
+        check("旧密码立刻失效",
+              status_code(f"http://127.0.0.1:{PORT}/api/health?key={TEST_KEY}") == 401)
+    finally:
+        # 还原，别把测试用的密码留在文件里
+        try_set_key(TEST_KEY)
+        if key_backup is None and key_path.is_file():
+            key_path.unlink()
+        elif key_backup is not None:
+            key_path.write_text(key_backup, encoding="utf-8")
+        module.GATEWAY_KEY = TEST_KEY
 
     size_before_tray = (root.winfo_width(), root.winfo_height())
     pos_before_tray = (root.winfo_x(), root.winfo_y())
@@ -352,7 +432,9 @@ def main() -> int:
 
     def health_root(port):
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=5) as resp:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/health?{AUTH}", timeout=5
+            ) as resp:
                 return _json.load(resp).get("root")
         except Exception as exc:
             return f"<请求失败 {exc}>"

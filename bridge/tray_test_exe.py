@@ -53,6 +53,25 @@ DEFAULT_EXE = HERE.parent / "dist" / "AzurRemBridge.exe"
 WINDOW_TITLE = "AzurRem 数据桥"
 TRAY_CLASS_PREFIX = "AzurRemBridgeTrayWnd_"
 
+
+def read_gateway_key(exe_path: Path, timeout: float = 20.0) -> str:
+    """网关密码写在 exe 旁边（azurrem-gateway.key）。
+
+    网关 2.0 起除状态页外的每个出口都要凭据，所以这个脚本里所有
+    /api/health 都得带上它。首次运行才生成，得像等端口那样轮询一下。
+    """
+    key_file = exe_path.parent / "azurrem-gateway.key"
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            text = key_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            text = ""
+        if text:
+            return text
+        time.sleep(0.3)
+    return ""
+
 # 蓝点在挂件窗口里的位置（跟 gui_test 量出来的 dot_row / TrafficButton 布局一致：
 # dot_row 右对齐在 relx=1.0,x=-12，第一个 16px 的圆点画布内圆心 8px）
 DOT_TRAY_OFFSET = (160, 16)
@@ -222,13 +241,20 @@ def main() -> int:
     exit_code = 0
     try:
         base = f"http://127.0.0.1:{args.port}"
+        gateway_key = read_gateway_key(exe, timeout=args.timeout)
+        if not gateway_key:
+            print("[X] 等不到 azurrem-gateway.key（网关没起来，或目录不可写）")
+            print(log_path.read_text(encoding="utf-8", errors="replace"))
+            return 1
         ready = False
         deadline = time.time() + args.timeout
         while time.time() < deadline:
             if proc.poll() is not None:
                 break
             try:
-                with urllib.request.urlopen(f"{base}/api/health", timeout=2) as resp:
+                with urllib.request.urlopen(
+                    f"{base}/api/health?key={gateway_key}", timeout=2
+                ) as resp:
                     if resp.status == 200:
                         ready = True
                         break
@@ -286,7 +312,9 @@ def main() -> int:
         # 3) 收进托盘期间接口必须照常
         ok_health = False
         try:
-            with urllib.request.urlopen(f"{base}/api/health", timeout=5) as resp:
+            with urllib.request.urlopen(
+                f"{base}/api/health?key={gateway_key}", timeout=5
+            ) as resp:
                 ok_health = resp.status == 200 and json.load(resp).get("success") is True
         except Exception as exc:
             print(f"     /api/health 失败：{exc}")

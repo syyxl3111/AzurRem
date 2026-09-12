@@ -1,7 +1,7 @@
 package com.azurpilot.mobile.data
 
 // ─────────────────────────────────────────────────────────────
-// 任务菜单树（来自数据桥 /api/task_tree，源头是 menu.json + i18n）
+// 任务菜单树（来自网关 /api/task_tree，源头是 menu.json + i18n）
 // ─────────────────────────────────────────────────────────────
 
 data class MenuItem(val key: String, val name: String)
@@ -109,7 +109,7 @@ data class TaskConfig(
 )
 
 // ─────────────────────────────────────────────────────────────
-// 耄耋相接（指挥喵）—— 来自数据桥 /api/meow_stats
+// 耄耋相接（指挥喵）—— 来自网关 /api/meow_stats
 // ─────────────────────────────────────────────────────────────
 
 data class MeowRow(
@@ -128,7 +128,7 @@ data class MeowStats(
 )
 
 // ─────────────────────────────────────────────────────────────
-// 耄耋相接**数据收集** —— 来自数据桥 /api/meow_hazard
+// 耄耋相接**数据收集** —— 来自网关 /api/meow_hazard
 //
 // ⚠️ 和上面的 MeowStats 是**两张不同的表**：
 //   MeowStats   = 「耄耋相接收获」（战利品：黄币/金菜/深渊/隐秘 每轮均值），
@@ -165,7 +165,7 @@ data class MeowHazardStats(
 )
 
 // ─────────────────────────────────────────────────────────────
-// 每日经验检测 —— 来自数据桥 /api/ship_exp
+// 每日经验检测 —— 来自网关 /api/ship_exp
 // ─────────────────────────────────────────────────────────────
 
 data class ShipExpRow(
@@ -205,7 +205,7 @@ data class ShipExpStats(
 )
 
 // ─────────────────────────────────────────────────────────────
-// 委托收益统计 —— 来自数据桥 /api/commission_income
+// 委托收益统计 —— 来自网关 /api/commission_income
 //
 // 源头是 `config/cl1_data.db` 里 `cl1_data.data_json` 的
 // `commission_income_entries`（按月份分库存），聚合逻辑抄的是

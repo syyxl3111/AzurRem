@@ -62,6 +62,17 @@ bridge/*.log
 bridge/*_report.txt
 bridge/exe_ship_exp.json
 
+# ── 4b. 网关运行时产物（**含密钥，绝不能进仓库**）─────────
+# 网关 exe/脚本在**自己旁边**生成这几个文件（见 mobile_bridge.py 的 APP_DIR）：
+#   azurrem-gateway.key    网关密码，32 位随机，首次运行生成
+#   azurpilot-root.txt     上次找到的 AzurPilot 目录
+#   azurrem-settings.json  挂件窗口的勾选项
+# ⚠️ 第一条是**密钥**。这里按通配挡掉，连 dist/ 里那份一起管住。
+azurrem-gateway.key
+azurpilot-root.txt
+azurrem-settings.json
+dist/*.key
+
 # ── 5. 截图 ─────────────────────────────────────────────
 # shots/ 是开发过程中的全量实测截图（60+ 张，33MB）。
 # README 只引用 docs/screenshots/ 里那几张压过尺寸的，全量不入库。

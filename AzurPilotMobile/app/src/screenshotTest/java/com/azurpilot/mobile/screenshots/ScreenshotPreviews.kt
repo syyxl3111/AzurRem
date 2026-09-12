@@ -188,8 +188,8 @@ fun Settings() {
         SettingsScreen(
             state = state,
             onServerUrl = {},
-            onBridgeUrl = {},
             onInstance = {},
+            onWebuiPassword = {},
             onPollSeconds = {},
             onLogLines = {},
             onThemeMode = {},

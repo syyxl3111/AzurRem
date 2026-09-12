@@ -73,25 +73,26 @@ fun cacheAgeText(epochMillis: Long): String {
 }
 
 /**
- * 数据桥取不到数据时给用户看的提示。
+ * 网关取不到数据时给用户看的提示。
  *
  * 写法上刻意**给动作而不是给名词** ——
- * "需要 sidecar 数据桥（bridge/mobile_bridge.py）" 这种话只有写代码的人看得懂，
+ * "需要 sidecar 网关（bridge/mobile_bridge.py）" 这种话只有写代码的人看得懂，
  * 用户看到只知道"坏了"。所以直接把要做的那一下写出来：双击哪个文件。
  *
  * 配置树 / 资源趋势 / 耄耋相接 / 经验检测共用同一句，免得各写一份、
  * 还写着不同的端口号。
  */
 val BRIDGE_DOWN_HINT: String =
-    "PC 上的数据桥没在运行。\n\n" +
-        "在 PC 上双击 bridge\\start_bridge.bat 就行（窗口开着就别关）。\n" +
-        "不想每次手动开：双击 bridge\\enable-autostart.bat 让它开机自启。"
+    "PC 上的网关没在运行。\n\n" +
+        "在电脑上双击 AzurRemBridge.exe 就行（它的小窗口开着就别关），" +
+        "默认会把 AzurPilot 一起拉起来。\n" +
+        "不想每次手动开：双击仓库里的 bridge\\enable-autostart.bat 让它开机自启。"
 
 /**
- * 任务名兜底表 —— **非权威**，只在数据桥不可达、拿不到任务树时用。
+ * 任务名兜底表 —— **非权威**，只在网关不可达、拿不到任务树时用。
  *
  * 权威源是 `module/config/i18n/zh-CN.json` 的 `Task.<Key>.name`，
- * App 通过数据桥 `/api/task_tree` 拿到，用 `TaskTree.nameOf(key)` 查。
+ * App 通过网关 `/api/task_tree` 拿到，用 `TaskTree.nameOf(key)` 查。
  *
  * 这里的取值是照抄那个文件的（2026-09-11 核对过一遍），
  * 之前手写的版本 22 条里有 13 条和 PC 对不上（比如把 `OpsiScheduling`

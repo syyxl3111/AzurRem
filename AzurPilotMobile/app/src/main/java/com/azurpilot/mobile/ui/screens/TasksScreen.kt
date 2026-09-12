@@ -104,7 +104,7 @@ fun TasksScreen(
             instance = state.instance,
             running = state.running,
             stateCode = state.stateCode,
-            // MCP 给的是英文任务键，这里过一遍 i18n（权威源是数据桥 /api/task_tree）
+            // MCP 给的是英文任务键，这里过一遍 i18n（权威源是网关 /api/task_tree）
             currentTask = state.taskTree?.nameOf(state.currentTask) ?: taskLabel(state.currentTask),
             lastSyncAt = state.lastSyncAt,
             connected = state.connected,

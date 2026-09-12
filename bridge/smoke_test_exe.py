@@ -45,14 +45,37 @@ ENDPOINTS = [
 ]
 
 
-def _url(base: str, path: str) -> str:
+def _url(base: str, path: str, key: str = "") -> str:
     """拼 URL：path 里可能已经带了 ?query（比如 /api/commission_income?...
 
     不能无脑再拼一个 "?instance=alas" —— 那会变成
     `...?instance=alas&period=month?instance=alas`，period 变成 "month?instance=alas"。
+
+    网关 2.0 起所有 /api/* 都要凭据，key 一并带上。
     """
+    query = "instance=alas"
+    if key:
+        query += f"&key={key}"
     joiner = "&" if "?" in path else "?"
-    return f"{base}{path}{joiner}instance=alas"
+    return f"{base}{path}{joiner}{query}"
+
+
+def read_gateway_key(exe_path: Path, timeout: float = 20.0) -> str:
+    """网关密码写在 exe 旁边（azurrem-gateway.key）。
+
+    首次运行才生成，所以得像等 /api/health 那样轮询一下 —— 直接读会读到空。
+    """
+    key_file = exe_path.parent / "azurrem-gateway.key"
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            text = key_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            text = ""
+        if text:
+            return text
+        time.sleep(0.3)
+    return ""
 
 
 def _summarize(path: str, payload: dict) -> str:
@@ -201,6 +224,16 @@ def main() -> int:
     base = f"http://127.0.0.1:{args.port}"
     failures = []
     try:
+        # 网关密码：exe 启动时才写出来，先等它 —— 后面的请求全要带
+        gateway_key = read_gateway_key(exe, timeout=args.timeout)
+        if not gateway_key:
+            print("[X] 等不到 azurrem-gateway.key（网关没起来，或那个目录不可写）")
+            print("---- exe 输出 ----")
+            print(log_path.read_text(encoding="utf-8", errors="replace"))
+            return 1
+        print(f"[OK] 已读到网关密码（{len(gateway_key)} 位，来自 {exe.parent.name}\\"
+              f"azurrem-gateway.key）")
+
         # 等 /api/health 真的响应：onefile 首次运行要先解包，别盲等固定秒数
         ready = False
         deadline = time.time() + args.timeout
@@ -208,7 +241,9 @@ def main() -> int:
             if proc.poll() is not None:
                 break
             try:
-                with urllib.request.urlopen(f"{base}/api/health", timeout=2) as resp:
+                with urllib.request.urlopen(
+                    f"{base}/api/health?key={gateway_key}", timeout=2
+                ) as resp:
                     if resp.status == 200:
                         ready = True
                         break
@@ -226,7 +261,7 @@ def main() -> int:
         print("-" * 130)
 
         for path in ENDPOINTS:
-            url = _url(base, path)
+            url = _url(base, path, gateway_key)
             started = time.time()
             try:
                 with urllib.request.urlopen(url, timeout=20) as resp:
@@ -276,8 +311,8 @@ def main() -> int:
                 print("---- rows 结束 ----\n")
 
         # 不带任何参数的默认值：instance=DEFAULT_INSTANCE、period="month"
-        # （App 万一忘了带参数，这里也不能 500）
-        bare = f"{base}/api/commission_income"
+        # （App 万一忘了带参数，这里也不能 500）。凭据还是要带的。
+        bare = f"{base}/api/commission_income?key={gateway_key}"
         try:
             with urllib.request.urlopen(bare, timeout=20) as resp:
                 code = resp.status
@@ -337,7 +372,7 @@ def main() -> int:
         else:
             print(f"[X] 端口 {args.port} 还在监听，可能残留了子进程："
                   f"用 `tasklist | findstr AzurRemBridge` 查一下")
-        print(f"（exe 控制台输出留在 {log_path}，里面能看到「数据桥已启动」和手机地址）")
+        print(f"（exe 输出留在 {log_path}，里面能看到「网关密码已就绪」和「网关已启动：<地址>」）")
 
 
 if __name__ == "__main__":

@@ -26,6 +26,46 @@ import java.util.concurrent.atomic.AtomicInteger
 class McpException(message: String) : Exception(message)
 
 /**
+ * MCP 凭据的全局持有者。
+ *
+ * **为什么需要**：AzurPilot 从 2026-09-11 的提交 `a265c98de` 起给 MCP 加了鉴权
+ * （`module/webui/mcp_auth.py`），密钥复用 WebUI 密码。设了密码的实例，不带凭据
+ * 访问 `/mcp/sse` 一律 401；**没设密码的实例全放行** —— 所以空串时「不带 header」
+ * 才是正确行为，不能硬塞一个空的 Bearer。
+ *
+ * 服务端 `extract_credential()` 认三种传法：`Authorization: Bearer`、
+ * `X-API-Key`、`?key=`。这里用 Bearer —— 密码不进 URL，日志和截图都干净。
+ *
+ * ★ **为什么是全局静态，而不是 `AzurPilotApi` 的构造参数**：
+ * `AzurPilotApi(serverUrl)` 在 `AppViewModel` 里被调了十几处，签名加参数得逐个改，
+ * 漏一处就表现成「有的页面能连、有的 401」这种极难查的症状。密码是全局唯一的，
+ * 放这里最贴合它的语义。由 `AppViewModel` 在启动和用户改设置时 [configure]。
+ */
+object McpAuth {
+    @Volatile
+    var key: String = ""
+        private set
+
+    fun configure(password: String) {
+        key = password.trim()
+    }
+}
+
+/** 给请求挂上凭据。[McpAuth.key] 为空时原样返回，不带任何 header。 */
+private fun Request.Builder.applyAuth(): Request.Builder =
+    if (McpAuth.key.isEmpty()) this
+    else header("Authorization", "Bearer ${McpAuth.key}")
+
+/**
+ * 服务器地址不可用时的提示语。
+ *
+ * 空地址单独给一句**能照着做的**。原来两种情况共用「服务器地址无效：」，
+ * 地址为空时就显示成一个带冒号却没有下文的错误 —— 新人看到完全不知道下一步干嘛。
+ */
+private fun invalidBaseMessage(baseUrl: String): String =
+    if (baseUrl.isBlank()) Settings.BLANK_URL_HINT else "服务器地址无效：$baseUrl"
+
+/**
  * 一轮 MCP 会话（MCP 的 SSE 传输变体）。
  *
  *   GET  <origin>/mcp/sse        → SSE 流
@@ -49,15 +89,20 @@ class McpSession(baseUrl: String) : AutoCloseable {
 
     init {
         val parsed = baseUrl.trim().toHttpUrlOrNull()
-            ?: throw McpException("服务器地址无效：$baseUrl")
+            ?: throw McpException(invalidBaseMessage(baseUrl))
         origin = "${parsed.scheme}://${parsed.host}:${parsed.port}"
         startSse()
     }
 
     private fun startSse() {
+        // 凭据加在这里。若客户端**直连** AzurPilot，其实只有这一个请求需要它
+        // （服务端 mcp_auth 只验 `/mcp/sse`，之后靠 session_id 认人）；
+        // 但走网关时每个请求都要，所以 post() 那边也带了 —— 两边都带才能
+        // 同时支持"直连 AP"和"经网关"两种部署，不用分叉。
         val request = Request.Builder()
             .url("$origin/mcp/sse")
             .header("Accept", "text/event-stream")
+            .applyAuth()
             .get()
             .build()
 
@@ -129,6 +174,14 @@ class McpSession(baseUrl: String) : AutoCloseable {
     private suspend fun post(url: String, json: String) = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(url)
+            // ★ 每个请求都带凭据 —— 不要以为"只有 SSE 那一次需要"。
+            //
+            // 直连 AzurPilot 时确实只有 `/mcp/sse` 验密码（之后靠 session_id
+            // 认人，见 mcp_auth.py:327-330）。但一旦走 AzurRem 网关，**网关对
+            // 自己的每个出口都要凭据**（它不跟踪会话，也不该跟踪）。少了这一行，
+            // SSE 能握上手、紧接着 initialize 就被 401 —— 表现是"连上了但用不了"，
+            // 比彻底连不上更难查。这条是网关自测里真实抓到的。
+            .applyAuth()
             .post(json.toRequestBody(JSON_MEDIA))
             .build()
         HTTP.newCall(request).execute().use { resp ->
@@ -259,7 +312,7 @@ class McpSession(baseUrl: String) : AutoCloseable {
         }
 
         /**
-         * 普通 HTTP（数据桥的 `api` 系列接口）专用。
+         * 普通 HTTP（网关的 `api` 系列接口）专用。
          *
          * ★ 之前这些请求复用了 [HTTP]，而它为了 SSE 把 `readTimeout` 设成了 **0 = 永不超时**。
          * 对长连接是对的，对一次性 GET 是灾难：对端接受了连接却不回数据时，
@@ -425,7 +478,7 @@ class AzurPilotApi(private val baseUrl: String) {
         /**
          * 预缓存时并发抓「结构」的路数。
          *
-         * 结构走的是数据桥（Python `ThreadingHTTPServer`，能并发），
+         * 结构走的是网关（Python `ThreadingHTTPServer`，能并发），
          * 6 路是压着手机 WiFi 的舒适区取的：再多收益就很小了，
          * 而单次只要 14ms，93 个任务 6 路也就 ~300ms。
          *
@@ -435,7 +488,7 @@ class AzurPilotApi(private val baseUrl: String) {
         const val SCHEMA_CONCURRENCY = 6
 
         /**
-         * 上一次**成功**用过的数据桥地址。
+         * 上一次**成功**用过的网关地址。
          *
          * `bridgeCandidates()` 里固定带着一个 `:25549`（早期版本桥的端口），
          * 绝大多数机器上那个端口根本没开。不记住成功地址的话，每次桥调用都要
@@ -487,10 +540,30 @@ class AzurPilotApi(private val baseUrl: String) {
         )
     }
 
-    private val origin: String = run {
-        val parsed = baseUrl.trim().toHttpUrlOrNull() ?: throw McpException("服务器地址无效：$baseUrl")
-        "${parsed.scheme}://${parsed.host}:${parsed.port}"
-    }
+    /**
+     * 服务器 origin（`scheme://host:port`）。
+     *
+     * ★ 这里**必须**是 getter，不能写成 `val ... = run { ... }` 的初始化表达式。
+     *
+     * 原来就是初始化写法，等于把「地址非法」从**构造函数**里抛出去。而调用方
+     * 普遍是这个形状：
+     *
+     *     val api = AzurPilotApi(s.serverUrl)   // ← 异常在这一行就炸了
+     *     try { api.xxx() } catch ...           // ← try 根本轮不到
+     *
+     * 于是「服务器地址留空 → 点统计页」直接闪退（用户实测）。统计页那三个
+     * 加载器还有更狠的变体：构造调用写在 `viewModelScope.launch` 里且外面没有
+     * try —— 那是**未捕获的协程异常**，同样结束进程。
+     *
+     * 改成 getter 之后，异常统一推迟到各方法内部抛出，正好落进调用方**已经**
+     * 写好的 try / runCatching 里。一处改动，几个雷一起拆掉。
+     */
+    private val origin: String
+        get() {
+            val parsed = baseUrl.trim().toHttpUrlOrNull()
+                ?: throw McpException(invalidBaseMessage(baseUrl))
+            return "${parsed.scheme}://${parsed.host}:${parsed.port}"
+        }
 
     /** 一次轮询：状态 + 资源 + 当前任务 + 调度队列 + 日志，共用一条 MCP 会话 */
     suspend fun fetchSnapshot(instance: String, logLines: Int): Snapshot = withContext(Dispatchers.IO) {
@@ -604,7 +677,7 @@ class AzurPilotApi(private val baseUrl: String) {
     }
 
     /**
-     * 全资源历史趋势 —— 走 sidecar 数据桥。
+     * 全资源历史趋势 —— 走 sidecar 网关。
      *
      * AzurPilot 自带接口里没有资源历史，数据只存在 config/azurstats_local.db。
      * 这里兼容两种桥的返回格式：
@@ -626,7 +699,7 @@ class AzurPilotApi(private val baseUrl: String) {
         }
         primary.getOrNull()?.let { if (it.series.isNotEmpty()) return@withContext it }
 
-        // 退回旧接口（早期版本的数据桥只有 /api/history，返回的是 {"ok": ...} 而不是 {"success": ...}）
+        // 退回旧接口（早期版本的网关只有 /api/history，返回的是 {"ok": ...} 而不是 {"success": ...}）
         val fallback = runCatching {
             parseLegacyHistory(
                 bridgeGet(
@@ -641,7 +714,7 @@ class AzurPilotApi(private val baseUrl: String) {
 
         primary.exceptionOrNull()?.let { throw it }
         fallback.exceptionOrNull()?.let { throw it }
-        throw McpException("数据桥没有返回资源历史")
+        throw McpException("网关没有返回资源历史")
     }
 
     private fun parseResourceHistory(root: JSONObject): ResourceHistory {
@@ -705,15 +778,15 @@ class AzurPilotApi(private val baseUrl: String) {
         )
     }
 
-    // ── 数据桥（sidecar）─────────────────────────────────────
+    // ── 网关（sidecar）─────────────────────────────────────
     //
-    // 25549 上可能跑着早期版本的数据桥（只有 /api/history），新接口在 25550。
+    // 25549 上可能跑着早期版本的网关（只有 /api/history），新接口在 25550。
     // 所以这里接受一组候选地址，依次尝试。
 
     /**
-     * 依次尝试候选数据桥，返回第一个**内容有效**的响应。
+     * 依次尝试候选网关，返回第一个**内容有效**的响应。
      *
-     * 关键点：校验必须放在循环**内部**。早期版本的数据桥对未知路径返回的是
+     * 关键点：校验必须放在循环**内部**。早期版本的网关对未知路径返回的是
      * HTTP 200 + `{"ok": false, "error": "未知路径"}` 而不是 404 —— 如果把校验
      * 放在循环外，第一个候选（旧桥）就会「成功」返回错误 JSON，永远不会去试
      * 第二个候选，新接口全部静默失效。
@@ -730,7 +803,7 @@ class AzurPilotApi(private val baseUrl: String) {
                 val root = JSONObject(httpGet("$base$path"))
                 if (!accept(root)) {
                     throw McpException(
-                        root.optString("error").ifBlank { "数据桥返回失败" },
+                        root.optString("error").ifBlank { "网关返回失败" },
                     )
                 }
                 markBridgeWorking(base)
@@ -739,7 +812,7 @@ class AzurPilotApi(private val baseUrl: String) {
                 lastError = e
             }
         }
-        throw lastError ?: McpException("没有可用的数据桥地址")
+        throw lastError ?: McpException("没有可用的网关地址")
     }
 
     /** 任务菜单树（图片里那个左栏）：10 个分组、93 个任务，带中文名 */
@@ -773,7 +846,7 @@ class AzurPilotApi(private val baseUrl: String) {
     suspend fun fetchMeowStats(baseUrls: List<String>, instance: String): MeowStats =
         withContext(Dispatchers.IO) {
             val data = bridgeGet(baseUrls, "/api/meow_stats?instance=$instance")
-                .optJSONObject("data") ?: return@withContext MeowStats(false, "数据桥没有返回数据", emptyList())
+                .optJSONObject("data") ?: return@withContext MeowStats(false, "网关没有返回数据", emptyList())
 
             val arr = data.optJSONArray("rows") ?: JSONArray()
             val rows = ArrayList<MeowRow>(arr.length())
@@ -800,7 +873,7 @@ class AzurPilotApi(private val baseUrl: String) {
         withContext(Dispatchers.IO) {
             val data = bridgeGet(baseUrls, "/api/ship_exp?instance=$instance")
                 .optJSONObject("data")
-                ?: return@withContext ShipExpStats(false, "数据桥没有返回数据", "", 0, 0.0, 0.0, 0.0, emptyList(), emptyList())
+                ?: return@withContext ShipExpStats(false, "网关没有返回数据", "", 0, 0.0, 0.0, 0.0, emptyList(), emptyList())
 
             val shipsArr = data.optJSONArray("ships") ?: JSONArray()
             val ships = ArrayList<ShipExpRow>(shipsArr.length())
@@ -881,7 +954,7 @@ class AzurPilotApi(private val baseUrl: String) {
     }
 
     /**
-     * 概览页的队列分段 —— 走数据桥，和 PC 的 `app_dashboard.py:35-58` 同源。
+     * 概览页的队列分段 —— 走网关，和 PC 的 `app_dashboard.py:35-58` 同源。
      *
      * 桥只返回 **pending / waiting** 两段：桥是独立进程，拿不到 `alive`，
      * 而「运行中」那一段完全取决于 alive。所以切分放在客户端
@@ -949,7 +1022,7 @@ class AzurPilotApi(private val baseUrl: String) {
             MeowHazardStats(month = data.optString("month"), rows = rows)
         }
 
-    // ── 委托收益统计（数据桥）────────────────────────────────
+    // ── 委托收益统计（网关）────────────────────────────────
 
     /**
      * 委托收益统计：按 [period] 聚合 5 种资源 + 最近几条结算记录。
@@ -1020,12 +1093,12 @@ class AzurPilotApi(private val baseUrl: String) {
     // ── 任务配置（MCP）───────────────────────────────────────
 
     /**
-     * 任务配置的中文结构 —— 优先走数据桥。
+     * 任务配置的中文结构 —— 优先走网关。
      *
      * 为什么不用 MCP 的 `get_task_help`：`module/config/mcp_helper.py:63` 查的是
      * `i18n[task_name][group][arg]`，但 i18n 的实际布局是 `i18n[group][arg]`
      * （分组名在顶层），于是 `i18n["Guild"]` 取到 None，**所有参数名退回英文键**。
-     * 数据桥里的 `/api/task_schema` 自己做了正确的 join，还顺手遵守了
+     * 网关里的 `/api/task_schema` 自己做了正确的 join，还顺手遵守了
      * `display: hide`（Command / SuccessInterval 这些在 WebUI 里是藏起来的）。
      *
      * 桥不可用时退回 `get_task_help`（英文名，但至少能改配置）。
@@ -1247,8 +1320,26 @@ class AzurPilotApi(private val baseUrl: String) {
         )
     }
 
+    /**
+     * 一次性 GET。**一律带凭据。**
+     *
+     * ★ 早先这里有个 `withAuth` 开关，只给 AzurPilot 自己的那两个 api 接口开，
+     *   理由是"桥的地址是用户随手填的，别把密码发给它"。那个判断在
+     *   **网关模式下是错的**：网关把 MCP、只读接口、9 条桥接口放在**同一个
+     *   origin、同一个密码**下面，桥请求不带凭据就直接 401 —— 表现是
+     *   "统计页里资源趋势那格写着 Failed to connect to ...:25549"，
+     *   看起来像端口不通，实际是没带钥匙。这条是实测抓到的。
+     *
+     * 现在的取舍：**统一带**。地址本来就是用户自己填的、指向他自己的机器，
+     * 而且网关模式下桥地址就是从服务器地址推导出来的同一个 origin。
+     *
+     * 注：写注释时别写「斜杠 + 星号」那种通配路径写法 —— Kotlin 的块注释
+     * 可以嵌套，一个星号就能把后面整个文件吞掉，编译器只在文件末尾报
+     * "Unclosed comment"，极难往回找。这个坑本文件已经踩过两次，
+     * bridge\\gateway_test.py 里加了一条静态检查盯着它。
+     */
     private fun httpGet(url: String): String {
-        val request = Request.Builder().url(url).get().build()
+        val request = Request.Builder().url(url).applyAuth().get().build()
         // 用 PLAIN 而不是 HTTP —— 后者 readTimeout=0，普通 GET 会永远挂着
         McpSession.PLAIN.newCall(request).execute().use { resp ->
             if (!resp.isSuccessful) throw McpException("HTTP ${resp.code}")

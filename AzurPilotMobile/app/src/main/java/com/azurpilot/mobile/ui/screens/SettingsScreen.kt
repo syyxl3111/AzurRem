@@ -41,6 +41,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.azurpilot.mobile.ui.icons.AppIcons
 import com.azurpilot.mobile.data.Settings
@@ -56,8 +58,8 @@ import com.azurpilot.mobile.ui.theme.AppTheme
 fun SettingsScreen(
     state: AppUiState,
     onServerUrl: (String) -> Unit,
-    onBridgeUrl: (String) -> Unit,
     onInstance: (String) -> Unit,
+    onWebuiPassword: (String) -> Unit,
     onPollSeconds: (Int) -> Unit,
     onLogLines: (Int) -> Unit,
     onThemeMode: (Int) -> Unit,
@@ -97,7 +99,7 @@ fun SettingsScreen(
             ) {
                 Column(Modifier.fillMaxWidth().padding(15.dp)) {
                     CommitTextField(
-                        label = "服务器地址（WebUI / MCP）",
+                        label = "服务器地址",
                         value = state.serverUrl,
                         keyboardType = KeyboardType.Uri,
                         onCommit = onServerUrl,
@@ -106,18 +108,29 @@ fun SettingsScreen(
                     // 所以没填的时候要在这里明确说一句，别让人对着空框发呆
                     if (state.serverUrl.isBlank()) {
                         Text(
-                            text = "必填。格式：http://<电脑的IP>:25548　例如 $SAMPLE_URL",
+                            text = "必填。填电脑上那个网关窗口第一行显示的地址，" +
+                                "例如 $SAMPLE_URL",
                             style = MaterialTheme.typography.labelSmall,
                             color = t.warning,
                             modifier = Modifier.padding(top = 5.dp, start = 4.dp),
                         )
                     }
                     Spacer(Modifier.height(12.dp))
+
+                    // 服务端密码 —— 就是网关窗口**第二行**显示的那串（默认 32 位随机）。
+                    //
+                    // 老名字叫「WebUI 密码」，因为那时它填的确实是 AzurPilot WebUI 的密码。
+                    // 走网关之后，App 认的是**网关自己的**密码，AzurPilot 那把留在电脑上、
+                    // 由网关注入 —— 所以名字跟着改，免得用户去翻 deploy.yaml 找密码。
+                    //
+                    // 留空 = 不带凭据。只有在服务端**确实没设密码**时才对（旧行为兼容）；
+                    // 网关一律要密码，留空会看到全线 401。
                     CommitTextField(
-                        label = "数据桥地址（资源历史，留空自动推导）",
-                        value = state.bridgeUrl,
-                        keyboardType = KeyboardType.Uri,
-                        onCommit = onBridgeUrl,
+                        label = "服务端密码",
+                        value = state.webuiPassword,
+                        keyboardType = KeyboardType.Password,
+                        masked = true,
+                        onCommit = onWebuiPassword,
                     )
                     Spacer(Modifier.height(12.dp))
                     CommitTextField(
@@ -287,8 +300,10 @@ fun SettingsScreen(
             // iOS 的「分组说明文字」：放在组**外**、小字、次要色
             Text(
                 text = "AzurRem · AzurPilot 的原生安卓客户端。\n" +
-                    "通过 AzurPilot 自带的 MCP 服务读取状态与日志，不修改服务端任何文件。\n" +
-                    "服务端需保持 WebUI 运行（默认 25548 端口），/mcp 由 WebUI 一并挂载。",
+                    "电脑上跑 AzurRemBridge.exe 网关挂件，它统一对外：读本地统计数据，" +
+                    "并把操控反代给 AzurPilot。\n" +
+                    "App 只需要一个地址 + 一个密码。" +
+                    "不修改 AzurPilot 任何被跟踪的文件。",
                 style = MaterialTheme.typography.bodySmall,
                 color = t.textSecondary,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 7.dp),
@@ -308,6 +323,8 @@ private fun CommitTextField(
     label: String,
     value: String,
     keyboardType: KeyboardType,
+    /** true = 掩码显示（密码类字段）。只影响显示，存的是原文。 */
+    masked: Boolean = false,
     onCommit: (String) -> Unit,
 ) {
     val t = AppTheme.acrylic
@@ -321,6 +338,11 @@ private fun CommitTextField(
         label = { Text(label) },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyMedium,
+        visualTransformation = if (masked) {
+            PasswordVisualTransformation()
+        } else {
+            VisualTransformation.None
+        },
         keyboardOptions = KeyboardOptions(
             keyboardType = keyboardType,
             imeAction = ImeAction.Done,

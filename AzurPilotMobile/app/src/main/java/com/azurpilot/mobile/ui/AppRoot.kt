@@ -153,8 +153,8 @@ fun AppRoot(vm: AppViewModel) {
                             Tab.Settings -> SettingsScreen(
                                 state = state,
                                 onServerUrl = vm::updateServerUrl,
-                                onBridgeUrl = vm::updateBridgeUrl,
                                 onInstance = vm::updateInstance,
+                                onWebuiPassword = vm::updateWebuiPassword,
                                 onPollSeconds = vm::updatePollSeconds,
                                 onLogLines = vm::updateLogLines,
                                 onThemeMode = vm::updateThemeMode,

@@ -10,6 +10,7 @@ import com.azurpilot.mobile.data.CommissionIncome
 import com.azurpilot.mobile.data.CommissionPeriod
 import com.azurpilot.mobile.data.ConfigArg
 import com.azurpilot.mobile.data.ConfigCache
+import com.azurpilot.mobile.data.McpAuth
 import com.azurpilot.mobile.data.MeowHazardStats
 import com.azurpilot.mobile.data.MeowStats
 import com.azurpilot.mobile.data.ResourceItem
@@ -74,6 +75,14 @@ data class AppUiState(
     val serverUrl: String = "",
     val bridgeUrl: String = "",
     val instance: String = Settings.DEFAULT_INSTANCE,
+
+    /**
+     * WebUI 密码 —— 服务端设了才需要填，留空表示服务端没设密码。
+     *
+     * 存一份在 UI 状态里只是为了让设置页能显示和编辑；真正发请求时读的是
+     * [McpAuth.key]（见那边的注释：为什么它是全局静态而不是构造参数）。
+     */
+    val webuiPassword: String = "",
     val pollSeconds: Int = 30,
     val logLines: Int = 400,
     val themeMode: Int = 0,
@@ -111,7 +120,7 @@ data class AppUiState(
     /** 点了某个任务的 ⚡，等他确认「是否立即行动」；null = 没有待确认的 */
     val confirmTrigger: String? = null,
 
-    // 配置树（数据桥 /api/task_tree）
+    // 配置树（网关 /api/task_tree）
     val taskTree: TaskTree? = null,
     val treeLoading: Boolean = false,
     val treeError: String? = null,
@@ -144,7 +153,7 @@ data class AppUiState(
     val shipExp: ShipExpStats? = null,
     val shipExpLoading: Boolean = false,
 
-    // 委托收益统计（数据桥 /api/commission_income）
+    // 委托收益统计（网关 /api/commission_income）
     val commission: CommissionIncome? = null,
     val commissionLoading: Boolean = false,
     /** 拉失败的原因。**和「本月零收益」是两回事**，界面要分开显示 */
@@ -207,6 +216,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             serverUrl = settings.serverUrl,
             bridgeUrl = settings.effectiveBridgeUrl,
             instance = settings.instance,
+            webuiPassword = settings.webuiPassword,
             pollSeconds = settings.pollSeconds,
             logLines = settings.logLines,
             themeMode = settings.themeMode,
@@ -225,6 +235,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var prefetchJob: Job? = null
 
     init {
+        // ★ 必须赶在第一轮请求之前：AzurPilot 设了 WebUI 密码就会对 MCP 收凭据，
+        //   晚一步配置，启动时那一轮会先吃到一次 401（界面闪一下「无法连接」）。
+        McpAuth.configure(settings.webuiPassword)
+
         startPolling()
         // 任务树不只是「配置」页要用 —— 首页状态卡的任务名、任务页的行标题
         // 都得靠它翻译成中文（MCP 那边给的是英文键）。所以启动时就拉一次。
@@ -254,9 +268,39 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         pollJob = null
     }
 
-    /** 手动下拉刷新：不重置节奏，重新起一轮 */
+    /**
+     * 手动下拉刷新 / 状态卡的刷新按钮。
+     *
+     * ★ 除了重连 MCP 快照，还要把**当前页面自己那批数据**一起强制重拉。
+     *
+     * 原来这里只有一句 `pollOnce()`，而统计页那几个板块（行动力曲线、资源趋势、
+     * 耄耋相接、每日经验、委托收益）走的是**另一批接口**，跟 MCP 快照没关系 ——
+     * 于是点刷新时页面上的数字一动不动，用户看到的就是「刷新没反应 / 数据没更新」。
+     * 各页的刷新按钮都接在这里，所以在这里按当前 Tab 分派一次。
+     */
     fun manualRefresh() {
         viewModelScope.launch { pollOnce() }
+
+        // 日志页是**子页面**（Route.Logs）而不是 Tab，所以按路由先判一次。
+        // `startLogStream()` 自己会把 offset 清零 —— 于是这里是"从头重拉"，
+        // 而不是"在已有内容后面继续追加"。
+        if (_ui.value.route == Route.Logs) {
+            stopLogStream()
+            _ui.update { it.copy(logs = emptyList(), logsFromBridge = false) }
+            startLogStream()
+            return
+        }
+
+        when (_ui.value.tab) {
+            Tab.Stats -> {
+                loadStats(force = true)
+                loadMeowAndExp(force = true)
+                loadCommission(force = true)
+            }
+            // 任务页和配置页的中文名都靠任务树
+            Tab.Tasks, Tab.Config -> loadTaskTree(force = true)
+            else -> Unit
+        }
     }
 
     private suspend fun pollOnce() {
@@ -273,7 +317,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     loading = false,
                     refreshing = false,
                     connected = false,
-                    error = "还没填服务器地址。\n去「设置 → 服务器地址」填上你电脑的地址，例如 ${Settings.SAMPLE_URL}",
+                    error = Settings.BLANK_URL_HINT,
                 )
             }
             return
@@ -488,7 +532,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     _ui.update {
                         it.copy(
                             historyLoading = false,
-                            historyError = if (history.series.isEmpty()) "数据桥里还没有资源快照" else null,
+                            historyError = if (history.series.isEmpty()) "网关还没有采集到资源快照" else null,
                             resourceHistory = history.series,
                             historySamples = history.sampleCount,
                         )
@@ -499,7 +543,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         it.copy(
                             historyLoading = false,
                             historyError = e.message?.takeIf { m -> m.isNotBlank() }
-                                ?: "取不到资源历史（数据桥没启动？）",
+                                ?: "取不到资源历史（网关没启动？）",
                         )
                     }
                 },
@@ -517,10 +561,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(tab = tab, route = Route.Tabs) }
         when (tab) {
             Tab.Stats -> {
-                loadStats()
-                loadMeowAndExp()
+                // ★ 每次进统计页都**强制重拉**，不吃缓存。
+                //
+                //   这几个接口在局域网里是 40~90ms 级，而用户点进来就是想看**当前**
+                //   的数字 —— 拿着上次进页面时的旧值，表现出来就是「统计页没更新，
+                //   和 PC 上对不上」。重拉期间旧数据仍留在屏幕上（骨架屏只在完全
+                //   没数据时才出），所以不会闪一下空白。
+                loadStats(force = true)
+                loadMeowAndExp(force = true)
                 // 委托收益和别的统计一样，只在进统计页时拉
-                loadCommission()
+                loadCommission(force = true)
             }
             // 任务页也要用任务树里的中文名，所以两个 Tab 都触发一次加载
             Tab.Config, Tab.Tasks -> loadTaskTree()
@@ -529,16 +579,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ─────────────────────────────────────────────────────
-    // 数据桥：候选地址
+    // 网关：候选地址
     // ─────────────────────────────────────────────────────
 
     /**
-     * 数据桥候选地址。
+     * 网关候选地址。
      *
-     * 25549 上可能跑着早期版本的数据桥（没有新接口），新版跑在 25550。
+     * 25549 上可能跑着早期版本的网关（没有新接口），新版跑在 25550。
      * 所以这里给出一组候选，API 层会依次尝试 —— 哪个在跑都能用。
      *
-     * 服务器地址为空时**返回空列表**：宁可让调用方报「没有可用的数据桥地址」，
+     * 服务器地址为空时**返回空列表**：宁可让调用方报「没有可用的网关地址」，
      * 也不要去连一台跟我们毫无关系的机器（那正是硬编码 IP 时代的毛病）。
      */
     private fun bridgeCandidates(): List<String> {
@@ -807,7 +857,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(
                         treeLoading = false,
                         treeError = e.message?.takeIf { m -> m.isNotBlank() }
-                            ?: "取不到任务菜单树（数据桥没启动？）",
+                            ?: "取不到任务菜单树（网关没启动？）",
                     )
                 }
             }
@@ -923,8 +973,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val api = AzurPilotApi(s.serverUrl)
         val bridges = bridgeCandidates()
 
+        // 地址都还没填时，让人去 PC 上「双击 AzurRemBridge.exe」是南辕北辙 ——
+        // 他连服务器地址都没填，第一步根本还没走到「网关」那一步。
+        val hint = if (s.serverUrl.isBlank()) Settings.BLANK_URL_HINT else BRIDGE_DOWN_HINT
+
+        // ★★ 这三条的「要不要拉」必须看**有没有真的拿到数据**，不能只看对象是不是 null。
+        //
+        //   原来三个 guard 都是 `s.xxx == null`，而失败分支塞进去的是
+        //   `MeowStats(false, hint, emptyList())` 这种**非 null 的占位对象** ——
+        //   于是首次请求一旦失败（网关还没起、刚改完地址还在重连、第一次进统计页时
+        //   网络还没通…），`== null` 永远为假，这一格就**再也不会重试**，
+        //   直到杀进程重开。
+        //
+        //   用户实测就是这个问题：资源趋势和委托收益都正常，只有
+        //   「耄耋相接」和「每日经验检测」一直挂着「PC 上的网关没在运行」，
+        //   而后端接口其实是好的（同一个网关的另外 7 个接口都通）。
+        //
+        //   `available` 是现成的失败标志；MeowHazard 没有这个字段，用 rows 空判断。
+        val hazardStale = s.meowHazard == null || s.meowHazard.rows.isEmpty()
+        val meowStale = s.meowStats == null || !s.meowStats.available
+        val expStale = s.shipExp == null || !s.shipExp.available
+
         // 耄耋相接**数据收集**（按侵蚀等级 3/5 分组的场次与耗时）
-        if (!s.meowHazardLoading && (force || s.meowHazard == null)) {
+        if (!s.meowHazardLoading && (force || hazardStale)) {
             viewModelScope.launch {
                 _ui.update { it.copy(meowHazardLoading = true) }
                 val result = runCatching { api.fetchMeowHazard(bridges, s.instance) }
@@ -938,7 +1009,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         // 耄耋相接**收获**（战利品 CSV）—— 和上面是两张表，PC 端两张都显示
-        if (!s.meowLoading && (force || s.meowStats == null)) {
+        if (!s.meowLoading && (force || meowStale)) {
             viewModelScope.launch {
                 _ui.update { it.copy(meowLoading = true) }
                 val result = runCatching { api.fetchMeowStats(bridges, s.instance) }
@@ -947,13 +1018,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         meowLoading = false,
                         // 桥不可达时给能照着做的提示，不要把
                         // "Failed to connect to /<主机>:<端口>" 这种原始异常甩给用户
-                        meowStats = result.getOrElse { MeowStats(false, BRIDGE_DOWN_HINT, emptyList()) },
+                        meowStats = result.getOrElse { MeowStats(false, hint, emptyList()) },
                     )
                 }
             }
         }
 
-        if (!s.shipExpLoading && (force || s.shipExp == null)) {
+        if (!s.shipExpLoading && (force || expStale)) {
             viewModelScope.launch {
                 _ui.update { it.copy(shipExpLoading = true) }
                 val result = runCatching { api.fetchShipExp(bridges, s.instance) }
@@ -963,7 +1034,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         shipExp = result.getOrElse {
                             ShipExpStats(
                                 available = false,
-                                reason = BRIDGE_DOWN_HINT,
+                                reason = hint,
                                 lastCheckTime = "", targetLevel = 0,
                                 avgBattleSeconds = 0.0, avgRoundSeconds = 0.0,
                                 avgMeowBattleSeconds = 0.0,
@@ -1008,7 +1079,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // 前者要提示去开桥，后者是正常的零。这里的 null 让界面
                     // 走「读不到」那条分支，不会误报成「本月零收益」。
                     commissionError = result.exceptionOrNull()?.let { e ->
-                        e.message?.takeIf { m -> m.isNotBlank() } ?: "取不到委托收益（数据桥没启动？）"
+                        e.message?.takeIf { m -> m.isNotBlank() } ?: "取不到委托收益（网关没启动？）"
                     },
                 )
             }
@@ -1163,7 +1234,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun updateServerUrl(url: String) {        settings.serverUrl = url
-        // 数据桥地址留空时是跟着服务器主机走的，所以这里要一起刷新
+        // 网关地址留空时是跟着服务器主机走的，所以这里要一起刷新
         _ui.update {
             it.copy(
                 serverUrl = settings.serverUrl,
@@ -1180,6 +1251,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun updateBridgeUrl(url: String) {
         settings.bridgeUrl = url
         _ui.update { it.copy(bridgeUrl = settings.effectiveBridgeUrl) }
+    }
+
+    /**
+     * 改 WebUI 密码。
+     *
+     * 改完**立刻重启轮询**：密码填对了下一轮就连上，填错了也应该马上看到
+     * 「HTTP 401」—— 而不是对着旧状态干等一个轮询周期（默认 30 秒）才反应过来。
+     */
+    fun updateWebuiPassword(password: String) {
+        settings.webuiPassword = password
+        McpAuth.configure(settings.webuiPassword)
+        _ui.update {
+            it.copy(
+                webuiPassword = settings.webuiPassword,
+                error = null,
+                connected = false,
+            )
+        }
+        restartPolling()
     }
 
     fun updateInstance(name: String) {

@@ -13,8 +13,18 @@ android {
         applicationId = "com.azurpilot.mobile"
         minSdk = 26
         targetSdk = 37
-        versionCode = 4
-        versionName = "1.0.3"
+        // ★ versionCode 必须**每出一个包就 +1**，哪怕 versionName 没变。
+        //
+        //   踩过一次：1.0.4 先后打了三个内容不同的包（改设置页之前一个、之后两个），
+        //   versionCode 全是 5。Android 只按 versionCode 判断新旧，所以已经装了
+        //   code=5 旧包的机器**不会被新包覆盖** —— 用户装上去打开一看还是旧界面，
+        //   而系统显示"版本 1.0.4"，两边对不上，极难排查。
+        //   现在：code=5 是「1.0.4 首个包」，code=6 起是带修复的包。
+        //   code=7：设置页地址栏自动补 scheme（用户裸填 example.com 时不会再连不上）。
+        //   code=8：界面文案统一改叫「网关」（原来叫「数据桥」），并修掉一处
+        //           指向已不存在的 start_bridge.bat 的提示。
+        versionCode = 8
+        versionName = "1.0.4"
     }
 
     buildTypes {
@@ -104,6 +114,7 @@ tasks.register<JavaExec>("unitTest") {
     // 新增测试类时要手动加到这里 —— JUnitCore 不会自己发现
     args = listOf(
         "com.azurpilot.mobile.data.ConfigCacheTest",
+        "com.azurpilot.mobile.data.SettingsUrlTest",
         "com.azurpilot.mobile.data.UpdateCheckerTest",
     )
 }

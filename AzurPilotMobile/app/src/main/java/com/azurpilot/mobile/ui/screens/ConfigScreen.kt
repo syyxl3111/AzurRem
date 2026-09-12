@@ -56,7 +56,7 @@ import com.azurpilot.mobile.ui.theme.AppTheme
 /**
  * 配置页 —— 对齐 WebUI 任务配置的左栏（search + 总览 + 可折叠分组）。
  *
- * 数据来自数据桥的 /api/task_tree（源头是 menu.json + i18n），
+ * 数据来自网关的 /api/task_tree（源头是 menu.json + i18n），
  * 10 个分组、93 个任务，带中文名。
  */
 @Composable
