@@ -50,7 +50,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_EXE = HERE.parent / "dist" / "AzurRemBridge.exe"
-WINDOW_TITLE = "AzurRem 数据桥"
+WINDOW_TITLE = "AzurRem 网关"
 TRAY_CLASS_PREFIX = "AzurRemBridgeTrayWnd_"
 
 
@@ -178,6 +178,31 @@ def click_until_hidden(x, y, hwnd, tries=3):
     return 0
 
 
+def cursor_pos():
+    """当前光标位置。测试会把它挪到蓝点上点，完事必须放回去。"""
+    p = wintypes.POINT()
+    if not user32.GetCursorPos(ctypes.byref(p)):
+        return None
+    return p.x, p.y
+
+
+def restore_cursor(pos) -> None:
+    """把光标放回原处。
+
+    ⚠️ 不做这件事会**污染整台机器后续的测试**：本脚本用 SetCursorPos 把光标挪到
+    蓝点坐标上点，点完就不管了。只要光标留在那儿，之后**任何**在默认位置
+    （屏幕右上角）新建的挂件窗口都会正好出生在光标底下，被 Windows 投递一次
+    左键 → 蓝点被按下 → 窗口一建好就收进托盘。
+
+    表现极具迷惑性：gui_test 报 `max() iterable argument is empty`（窗口没被
+    map，取不到任何可见子控件），而窗口挪到别处就一切正常 —— 看起来像产品的
+    bug，其实是测试自己留下的光标。而且一旦光标停住，权限不足的进程
+    （SetCursorPos 返回 False）就再也挪不动它，只能人工动一下鼠标。
+    """
+    if pos:
+        user32.SetCursorPos(pos[0], pos[1])
+
+
 def find_widget_window() -> int:
     return user32.FindWindowW(None, WINDOW_TITLE) or 0
 
@@ -239,6 +264,7 @@ def main() -> int:
                                 env=dict(os.environ, PYTHONIOENCODING="utf-8"))
 
     exit_code = 0
+    saved_cursor = cursor_pos()      # 见 restore_cursor 的注释：用完全程要放回去
     try:
         base = f"http://127.0.0.1:{args.port}"
         gateway_key = read_gateway_key(exe, timeout=args.timeout)
@@ -277,6 +303,12 @@ def main() -> int:
         check(f"找到挂件窗口「{WINDOW_TITLE}」", bool(hwnd), f"hwnd={hwnd}")
         if not hwnd:
             return 1
+        # 「找到」≠「已经 map」：FindWindowW 只比对标题，Tk 把窗口建出来但还没
+        # 显示时也会命中，紧接着查 IsWindowVisible 会偶发为假（真实遇到过的 flake，
+        # 下一项尺寸检查和点击都是过的）。所以这里等它有界地变可见。
+        vis_deadline = time.time() + 10
+        while time.time() < vis_deadline and not user32.IsWindowVisible(hwnd):
+            time.sleep(0.2)
         check("挂件窗口是可见的", bool(user32.IsWindowVisible(hwnd)))
         rect = window_rect(hwnd)
         check("挂件窗口有合理的尺寸（240x126 那一档）",
@@ -380,6 +412,7 @@ def main() -> int:
             print("---- 日志结束 ----")
 
     finally:
+        restore_cursor(saved_cursor)
         if proc.poll() is None:
             kill_tree(proc.pid)
             try:

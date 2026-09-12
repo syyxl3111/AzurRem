@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-AzurPilot 手机端 · 只读数据桥（sidecar）
+AzurRem 网关挂件（原：只读数据桥 sidecar）
 
 为什么需要它：
     AzurPilot 的 WebUI（25548）自带 MCP，已经能提供「资源当前值、日志、状态、
@@ -2516,12 +2516,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class BridgeServer(ThreadingHTTPServer):
-    """数据桥的 HTTP server。
+    """网关的 HTTP server。
 
     allow_reuse_address 必须显式关掉：Windows 的 SO_REUSEADDR 语义和 Linux 不同，
     开着它**第二个实例也能绑上同一个端口** —— 双击两次就会有两个桥同时收请求，
     谁回哪一条是随机的，而用户完全看不出来。关掉之后第二次启动会直接报端口占用。
-    （实测：不关的话第二个 exe 会打印「数据桥已启动」并真的开始服务。）
+    （实测：不关的话第二个 exe 会打印「网关已启动」并真的开始服务。）
     """
 
     allow_reuse_address = False
@@ -2569,7 +2569,7 @@ def _bind_server(port: int, attempts: int = 5, delay: float = 1.0) -> BridgeServ
 #       红 ×  退出：先 httpd.shutdown() 再退进程，不留孤儿占端口
 #     托盘那条路是纯 ctypes 手写的 Shell_NotifyIconW，见下面「系统托盘」一节
 #   · 紧凑 240x126（默认）与展开 340x210 两种尺寸，两种都放得下第二行
-#   · 第一行「数据桥已启动」+ 手机要填的地址（可选中复制）
+#   · 第一行「网关已启动」+ 手机要填的地址（可选中复制）
 #   · 第二行 [启动 AzurPilot] [选目录]，第三行小字提示结果
 #   · 失败时窗口里显示红字原因 —— 打包成 --noconsole 后没有控制台，不能靠 print
 #   · 拖 exe 起来时顺带拉起 AzurPilot，勾选框能关掉这个自动行为
@@ -2912,7 +2912,7 @@ TRAY_READY = bool(os.name == "nt" and ctypes is not None and wintypes is not Non
 TRAY_CALLBACK_MESSAGE = 0x8000 + 1
 TRAY_CMD_SHOW = 0xE100
 TRAY_CMD_EXIT = 0xE101
-TRAY_TOOLTIP = "AzurRem 数据桥（左键单击找回窗口，右键菜单）"
+TRAY_TOOLTIP = "AzurRem 网关（左键单击找回窗口，右键菜单）"
 
 # 常量（Win32 SDK）
 _WM_NULL, _WM_COMMAND, _WM_DESTROY = 0x0000, 0x0111, 0x0002
@@ -3380,7 +3380,7 @@ class TrayIcon:
         try:
             user32.AppendMenuW(menu, _MF_STRING, TRAY_CMD_SHOW, "显示窗口")
             user32.AppendMenuW(menu, _MF_SEPARATOR, 0, None)
-            user32.AppendMenuW(menu, _MF_STRING, TRAY_CMD_EXIT, "退出（停掉数据桥）")
+            user32.AppendMenuW(menu, _MF_STRING, TRAY_CMD_EXIT, "退出（停掉网关）")
             point = wintypes.POINT()
             user32.GetCursorPos(ctypes.byref(point))
             # KB135788：不先把我们的窗口抢成前台，菜单点到别处不会消失
@@ -3413,7 +3413,7 @@ class TrayIcon:
         try:
             user32.AppendMenuW(menu, _MF_STRING, TRAY_CMD_SHOW, "显示窗口")
             user32.AppendMenuW(menu, _MF_SEPARATOR, 0, None)
-            user32.AppendMenuW(menu, _MF_STRING, TRAY_CMD_EXIT, "退出（停掉数据桥）")
+            user32.AppendMenuW(menu, _MF_STRING, TRAY_CMD_EXIT, "退出（停掉网关）")
             buf = ctypes.create_unicode_buffer(128)
             for command in (TRAY_CMD_SHOW, TRAY_CMD_EXIT):
                 buf.value = ""
@@ -3549,7 +3549,7 @@ class BridgeWindow:
             after_cancel=root.after_cancel,
         )
 
-        root.title("AzurRem 数据桥")
+        root.title("AzurRem 网关")
         root.overrideredirect(True)            # 无边框，标题栏自己画
         root.configure(bg=CARD)
         try:
@@ -3597,7 +3597,7 @@ class BridgeWindow:
         self.btn_tray = TrafficButton(self.dot_row, DOT_BLUE, "−", self.on_hide_to_tray, "隐藏到系统托盘")
         self.btn_expand = TrafficButton(self.dot_row, DOT_GREEN, "⤢", self.on_toggle_size, "展开 / 收起（切换尺寸）")
         self.btn_minimize = TrafficButton(self.dot_row, DOT_YELLOW, "▼", self.on_minimize, "最小化到任务栏")
-        self.btn_close = TrafficButton(self.dot_row, DOT_RED, "×", self.on_close, "退出（同时停掉数据桥）")
+        self.btn_close = TrafficButton(self.dot_row, DOT_RED, "×", self.on_close, "退出（同时停掉网关）")
         for button in (self.btn_tray, self.btn_expand, self.btn_minimize, self.btn_close):
             button.pack(side="left", padx=2)   # 12px 圆点 + 8px 间距
 
@@ -3984,7 +3984,32 @@ class BridgeWindow:
         # 显示器、或者原来就贴着屏幕右边，还原回来都不会跑到屏幕外面去
         self._apply_geometry(self._last_size)
         self.root.after(50, self._refresh_window_chrome)
+        self._activate_by_win32()
         log("已从系统托盘还原")
+
+    def _activate_by_win32(self) -> None:
+        """把窗口真正**激活**（不只是显示 + 置顶）。
+
+        为什么非做不可（实测抓到的 bug）：`deiconify()` 只管「可见」，
+        `-topmost` 只管「盖在别人上面」，两个加起来仍然不等于「前台窗口」。
+        非前台窗口收到的左键会先被 Windows 当成「激活我」吃掉
+        （WM_MOUSEACTIVATE），根本传不到 Tk 控件上。
+
+        表现：左键点托盘图标把窗口叫回来，**再点蓝点收不回去** ——
+        得先点别处或连点好几次。tray_test 的「再点一次蓝点还能再收进托盘」
+        就是被这个卡住的（断言本身是对的，是产品错了）。
+
+        只改 Z 序和焦点都没用，必须 SetForegroundWindow。
+        调用时机安全：这条路只由**用户点托盘图标**触发，前台权限是现成的。
+        """
+        if os.name != "nt":
+            return
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id()) or self.root.winfo_id()
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+        except Exception as exc:
+            log(f"激活窗口失败：{exc}")
 
     def _restore_frameless(self) -> None:
         """把无边框 + 置顶装回来（从任务栏还原、从托盘还原都要用）。"""
@@ -4025,11 +4050,11 @@ class BridgeWindow:
         log("已从任务栏还原")
 
     def on_close(self) -> None:
-        """× / Alt+F4 / 托盘菜单「退出」：停掉数据桥再退出，别留僵尸进程。"""
+        """× / Alt+F4 / 托盘菜单「退出」：停掉网关再退出，别留僵尸进程。"""
         if self.closed:
             return
         self.closed = True
-        log("关闭窗口：停止数据桥")
+        log("关闭窗口：停止网关")
         # 先撤掉还没跑的定时器：窗口销毁后再触发会报
         # "invalid command name ..._tick"（--noconsole 下还可能弹 Tk 错误框）
         if self._tick_job is not None:
@@ -4161,7 +4186,7 @@ class BridgeWindow:
         self._set_entry(self.state["url"])
         self.lbl_root.configure(text=self._root_text())
         self.set_hint(f"已切换到 {self._shorten(str(ROOT), 34)} 并保存，立即生效")
-        log(f"数据桥已切换到新目录：{ROOT}（{self.state['url']}）")
+        log(f"网关已切换到新目录：{ROOT}（{self.state['url']}）")
         return True
 
     @staticmethod
@@ -4194,7 +4219,7 @@ class BridgeWindow:
         if enabled:
             self.set_hint("已开启：下次双击 exe 会自动拉起 AzurPilot")
         else:
-            self.set_hint("已关闭：双击 exe 只起数据桥（仍可手动点「启动 AzurPilot」）")
+            self.set_hint("已关闭：双击 exe 只起网关（仍可手动点「启动 AzurPilot」）")
 
     def set_hint(self, text: str, error: bool = False) -> None:
         """第三行小字：启动结果、切换结果、报错都走这里，不弹模态框。"""
@@ -4399,13 +4424,13 @@ def main(argv=None) -> int:
     write_cached_root(ROOT)
 
     # 2) 起服务（失败要在窗口里说清楚，不能一闪而过）
-    log("正在启动数据桥 ...")
+    log("正在启动网关 ...")
     try:
         server = _bind_server(PORT)
     except OSError as exc:
         if _something_listening(PORT):
             detail = (
-                f"端口 {PORT} 已经被占用 —— 多半是已经有一个数据桥在跑了。\n"
+                f"端口 {PORT} 已经被占用 —— 多半是已经有一个网关在跑了。\n"
                 "看看任务栏里有没有别的 AzurRem 挂件；\n"
                 f"真想同时跑两个：AzurRemBridge.exe --port {PORT + 1}"
             )
@@ -4417,7 +4442,7 @@ def main(argv=None) -> int:
         log(f"[X] {detail}")
         if headless or not _gui_available():
             return 4
-        return _run_window(_build_error_state("数据桥启动失败", detail, PORT, headless))
+        return _run_window(_build_error_state("网关启动失败", detail, PORT, headless))
 
     url = _url_text(PORT)
 
@@ -4448,7 +4473,7 @@ def main(argv=None) -> int:
         try:
             thread.join()
         except KeyboardInterrupt:
-            log("收到 Ctrl+C，停止数据桥")
+            log("收到 Ctrl+C，停止网关")
         finally:
             server.shutdown()
             server.server_close()

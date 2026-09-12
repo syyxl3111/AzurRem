@@ -2,7 +2,7 @@
 
 这是 **AzurRem** 的安卓工程。
 
-📖 **完整说明请看仓库根目录的 [README.md](../README.md)** —— 安装、数据桥、
+📖 **完整说明请看仓库根目录的 [README.md](../README.md)** —— 安装、网关、
 架构、安全说明、预缓存原理都在那里。这里只放安卓工程自己的东西。
 
 ---
@@ -59,7 +59,7 @@ Android Studio 打开工程时会自己生成。
 
 ```
 app/src/main/java/com/azurpilot/mobile/
-  data/          MCP 客户端、数据桥客户端、数据模型、设置存储、配置缓存
+  data/          MCP 客户端、网关客户端、数据模型、设置存储、配置缓存
   ui/theme/      设计令牌（颜色 / 字体 / 亚克力）
   ui/icons/      手绘的 SF Symbols 风格矢量图标
   ui/components/ 状态卡、资源行、启停按钮、Tab 栏、滑动返回、覆盖层

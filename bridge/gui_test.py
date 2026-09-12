@@ -373,7 +373,7 @@ def main() -> int:
 
     items = window.tray.menu_items()
     check("右键菜单里真的建出了「显示窗口」和「退出」",
-          [text for _cmd, text in items] == ["显示窗口", "退出（停掉数据桥）"], items)
+          [text for _cmd, text in items] == ["显示窗口", "退出（停掉网关）"], items)
     check("菜单命令号跟常量对得上",
           [cmd for cmd, _text in items] == [module.TRAY_CMD_SHOW, module.TRAY_CMD_EXIT],
           [cmd for cmd, _text in items])
