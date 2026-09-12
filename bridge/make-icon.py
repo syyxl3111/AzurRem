@@ -6,7 +6,7 @@
 想换图标只要换源图再跑一次这个脚本（build-exe.bat 会用到 bridge\\azurrem.ico）。
 
 用法：
-    D:\\Tools\\Python\\python.exe bridge\\make-icon.py
+    python bridge\\make-icon.py
 """
 
 from __future__ import annotations

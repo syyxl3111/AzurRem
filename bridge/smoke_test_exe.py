@@ -9,7 +9,7 @@
 
 用法：
     python bridge\\smoke_test_exe.py                 # 默认端口 25561
-    python bridge\\smoke_test_exe.py --port 25562 --root D:\\Tools\\AzurPilot
+    python bridge\\smoke_test_exe.py --port 25562 --root "%AZURPILOT_ROOT%"
     python bridge\\smoke_test_exe.py --no-root       # 故意不传 --root，测自动查找
 
 默认用 25561：25550 上可能正跑着另一个数据桥，别去打扰它。
@@ -187,7 +187,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="AzurRemBridge.exe 接口冒烟测试")
     parser.add_argument("--exe", default=str(DEFAULT_EXE))
     parser.add_argument("--port", type=int, default=25561)
-    parser.add_argument("--root", default=r"D:\Tools\AzurPilot")
+    parser.add_argument("--root", default=os.environ.get("AZURPILOT_ROOT", ""),
+                        help="AzurPilot 根目录（默认取环境变量 AZURPILOT_ROOT）")
     parser.add_argument("--no-root", action="store_true",
                         help="不传 --root，测自动查找（会用到 exe 旁的 azurpilot-root.txt）")
     parser.add_argument("--timeout", type=float, default=60.0, help="等待启动的秒数")
@@ -206,8 +207,12 @@ def main() -> int:
         # --noconsole 的 GUI exe：不加 --headless 就会弹窗口。
         # 默认用 headless 测接口，--gui 时才真的开窗口。
         cmd.append("--headless")
-    if not args.no_root:
+    # --root 从环境变量 AZURPILOT_ROOT 来（代码里不写死本机路径，那是开发者机器上的）。
+    # 两个都没给就退回测「自动查找」那条路，等价于 --no-root。
+    if args.root and not args.no_root:
         cmd += ["--root", args.root]
+    elif not args.no_root:
+        print("[i] 没给 AzurPilot 目录（AZURPILOT_ROOT 或 --root），这次改成测自动查找")
 
     log_path = HERE / f"smoke_test_{args.port}.log"
     print(f"启动：{' '.join(cmd)}")

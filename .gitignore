@@ -21,6 +21,13 @@ dist/
 # PyInstaller 的中间产物（bridge/build/AzurRemBridge.pkg 一个就 13MB）
 bridge/build/
 
+# ⚠️ AzurRemBridge.spec 同样是**生成物**，而且它比 pkg 更危险：
+#    build-exe.bat 用 --specpath + --noconfirm，每次构建都把它重写成
+#    **当前构建机的绝对路径**（`C:\Users\<用户名>\...\mobile_bridge.py`）。
+#    它曾经是被提交的 —— 等于把开发机的用户名和目录结构一并公开了。
+#    按通配挡掉，将来换名字也不会再漏。
+bridge/*.spec
+
 # Gradle / Kotlin 的编译输出
 AzurPilotMobile/build/
 AzurPilotMobile/app/build/

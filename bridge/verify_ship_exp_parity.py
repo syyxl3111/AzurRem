@@ -9,8 +9,10 @@
     「抄得对不对」不能靠看，只能跟原实现**逐字段 diff**。
 
 怎么用（必须用项目自己的 venv 跑，因为它要 import 项目模块）：
-    D:\\Tools\\AzurPilot\\.venv\\Scripts\\python.exe bridge\\verify_ship_exp_parity.py
+    "%AZURPILOT_ROOT%\\.venv\\Scripts\\python.exe" bridge\\verify_ship_exp_parity.py
     # 可选：--root <AzurPilot目录> --instance <实例名> --dump
+
+AzurPilot 目录从环境变量 `AZURPILOT_ROOT` 取（代码里不写死本机路径）。
 
 判定：所有字段完全一致 → 打印 [PASS]；任何一处不同 → 打印每个字段的差异并
       以退出码 1 结束（方便挂在 CI / 打包前检查里）。**只读**，不写 AzurPilot。
@@ -195,10 +197,15 @@ def _bridge_side(data_path: Path, exp_table_ref: list) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="桥移植版 vs 项目原实现 逐字段 diff")
-    parser.add_argument("--root", default=r"D:\Tools\AzurPilot", help="AzurPilot 根目录")
+    parser.add_argument("--root", default=os.environ.get("AZURPILOT_ROOT", ""),
+                        help="AzurPilot 根目录（默认取环境变量 AZURPILOT_ROOT）")
     parser.add_argument("--instance", default="alas", help="实例名（log/cl1/<实例>）")
     parser.add_argument("--dump", action="store_true", help="把两边的 JSON 也打出来")
     args = parser.parse_args()
+
+    if not args.root:
+        print("[X] 没指定 AzurPilot 目录。设环境变量 AZURPILOT_ROOT，或用 --root 传一个。")
+        return 2
 
     root = Path(args.root).expanduser().resolve()
     data_path = root / "log" / "cl1" / args.instance / "ship_exp_data.json"

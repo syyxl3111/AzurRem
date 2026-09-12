@@ -14,13 +14,15 @@
 
 会短暂弹出窗口 + 托盘里短暂出现一个图标（合计约 5 秒）再自己关掉，不需要人看着。
 用法：
-    D:\\Tools\\Python\\python.exe bridge\\gui_test.py
-退出码 0 = 全部通过。
+    python bridge\\gui_test.py
+退出码 0 = 全部通过。跑之前要把环境变量 `AZURPILOT_ROOT` 指向本机 AzurPilot 目录
+（这个自测要拿真目录跑，才能验证「切换目录」那一组）—— 代码里不写死任何本机路径。
 """
 
 from __future__ import annotations
 
 import importlib.util
+import os
 import socket
 import sys
 import threading
@@ -31,6 +33,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PORT = 25563            # 不碰 25550（那上面可能跑着真的桥）
 TRAY_PORT = 25564       # 「托盘菜单退出」那条路单独用一个口，别跟上面互相干扰
+
+# AzurPilot 目录。**不写死在代码里** —— 那是开发者本机的路径，进仓库等于泄露。
+# 从环境变量 AZURPILOT_ROOT 取；没设就直接报错退出，别去猜。
+AP_ROOT = os.environ.get("AZURPILOT_ROOT", "").strip()
 
 # 网关密码。进程内测试直接设模块级变量，省得去读 azurrem-gateway.key。
 # ★ 2.0 起网关除状态页外的每个出口都要凭据，所以下面所有 /api/* 请求都得带上它 ——
@@ -130,6 +136,12 @@ def pump_tk(root_widget, seconds=1.0):
 
 
 def main() -> int:
+    if not AP_ROOT or not Path(AP_ROOT).is_dir():
+        print("[X] 请先设环境变量 AZURPILOT_ROOT 指向本机 AzurPilot 目录：")
+        print('      setx AZURPILOT_ROOT "D:\\你的路径\\AzurPilot"')
+        print("    这个自测要拿真目录跑（/api/health 报的 root、切换目录那一组都靠它）。")
+        return 2
+
     module = _load_bridge()
     checks = []
 
@@ -152,11 +164,11 @@ def main() -> int:
     ip = (module.get_lan_ipv4_addresses() or ["127.0.0.1"])[0]
     # 服务端读的是模块级的 ROOT，测试里也要先指到真目录，
     # 否则 /api/health 报的 root 会是默认值（脚本自己所在的 bridge\）
-    module.configure_root(Path(r"D:\Tools\AzurPilot"))
+    module.configure_root(Path(AP_ROOT))
     state = {
         "ok": True, "title": "网关已启动",
         "detail": "手机端 App「设置 → 服务器地址」填上面这个（可选中复制）：",
-        "root": Path(r"D:\Tools\AzurPilot"), "root_source": "测试",
+        "root": Path(AP_ROOT), "root_source": "测试",
         "port": PORT, "url": f"http://{ip}:{PORT}",
         "gateway_key": TEST_KEY,
         "server": server, "headless": False, "launch_ap": False,
@@ -446,7 +458,7 @@ def main() -> int:
 
     cache = module.ROOT_CACHE_PATH
     cache_backup = cache.read_text(encoding="utf-8") if cache.is_file() else None
-    real_root = Path(r"D:\Tools\AzurPilot")
+    real_root = Path(AP_ROOT)
     try:
         check("切换前 /api/health 指向真目录", health_root(PORT) == str(real_root), health_root(PORT))
         switched = window.switch_root(fake_root)
@@ -555,7 +567,7 @@ def main() -> int:
     if fake and fake.is_dir():
         message = module.launch_azurpilot(fake)
         check("假目录里没有 alas-launcher.exe 时不报错", "没找到" in message, message)
-    real = Path(r"D:\Tools\AzurPilot")
+    real = Path(AP_ROOT)
     if real.is_dir():
         message = module.launch_azurpilot(real)
         check("AP 已在运行时不会重复启动", "已经在运行" in message or "已启动" in message, message)

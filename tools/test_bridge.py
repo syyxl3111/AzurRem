@@ -1,6 +1,11 @@
+import os
 import sys
 
-sys.path.insert(0, r"D:\Tools\AzurPilot")
+# AzurPilot 目录从环境变量取（代码里不写死本机路径）。
+_ap_root = os.environ.get("AZURPILOT_ROOT", "").strip()
+if not _ap_root:
+    raise SystemExit('[X] 请先设环境变量 AZURPILOT_ROOT，例如 setx AZURPILOT_ROOT "D:\\你的路径\\AzurPilot"')
+sys.path.insert(0, _ap_root)
 sys.stdout.reconfigure(encoding="utf-8")
 
 import mobile_bridge as b

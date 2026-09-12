@@ -10,8 +10,8 @@ App 里 openTaskConfig() 会做两件事：
 默认值）。这个脚本用标准库把整条流程复刻一遍，逐步计时。
 
 用法：
-    D:\\Tools\\Python\\python.exe bridge\\mcp_timing.py
-    D:\\Tools\\Python\\python.exe bridge\\mcp_timing.py --task Commission --repeat 3
+    python bridge\\mcp_timing.py
+    python bridge\\mcp_timing.py --task Commission --repeat 3
 """
 
 from __future__ import annotations

@@ -14,7 +14,7 @@
     对「页面能不能渲染」这件事，这两样足够了 —— 渲染只看结构和值，不看值从哪来。
 
 用法：
-    D:\\Tools\\Python\\python.exe bridge\\make_fake_cache.py --out D:\\Temp\\config_cache.json
+    python bridge\\make_fake_cache.py --out D:\\Temp\\config_cache.json
 （地址默认走 127.0.0.1，也可以用 AZURPILOT_SERVER / AZURREM_BRIDGE 环境变量或 --server/--bridge 指定）
 """
 

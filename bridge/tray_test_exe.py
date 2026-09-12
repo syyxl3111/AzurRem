@@ -21,8 +21,8 @@
     8. 结束时 taskkill /T 杀干净。
 
 用法：
-    D:\\Tools\\Python\\python.exe bridge\\tray_test_exe.py            # 默认端口 25565
-    D:\\Tools\\Python\\python.exe bridge\\tray_test_exe.py --port 25566
+    python bridge\\tray_test_exe.py            # 默认端口 25565
+    python bridge\\tray_test_exe.py --port 25566
 
 会短暂弹窗（约 6 秒），不需要人看着。退出码 0 = 全部通过。
 """
@@ -228,7 +228,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="AzurRemBridge.exe 托盘实测")
     parser.add_argument("--exe", default=str(DEFAULT_EXE))
     parser.add_argument("--port", type=int, default=25565)
-    parser.add_argument("--root", default=r"D:\Tools\AzurPilot")
+    parser.add_argument("--root", default=os.environ.get("AZURPILOT_ROOT", ""),
+                        help="AzurPilot 根目录（默认取环境变量 AZURPILOT_ROOT；留空则让 exe 自动查找）")
     parser.add_argument("--timeout", type=float, default=60.0)
     args = parser.parse_args()
 
@@ -255,7 +256,13 @@ def main() -> int:
         print(f"[!] 已经有一个标题为 {WINDOW_TITLE!r} 的窗口（hwnd={before_widget}），"
               f"下面认的会是**新起的**那一个")
 
-    cmd = [str(exe), "--port", str(args.port), "--root", args.root]
+    # --root 从环境变量 AZURPILOT_ROOT 来（代码里不写死本机路径）。
+    # 没给就不传 --root，让 exe 走自己的自动查找。
+    cmd = [str(exe), "--port", str(args.port)]
+    if args.root:
+        cmd += ["--root", args.root]
+    else:
+        print("[i] 没给 AzurPilot 目录（AZURPILOT_ROOT 或 --root），让 exe 自己自动查找")
     print(f"启动：{' '.join(cmd)}")
     log_path = HERE / f"tray_test_{args.port}.log"
     with open(log_path, "w", encoding="utf-8", errors="replace") as log:

@@ -15,8 +15,11 @@
   6. 白名单之外的路径**不会**被转到 AzurPilot 去
 
 用法：
-    .venv\\Scripts\\python.exe bridge\\gateway_test.py
-    .venv\\Scripts\\python.exe bridge\\gateway_test.py --root D:\\Tools\\AzurPilot
+    python bridge\\gateway_test.py
+    python bridge\\gateway_test.py --root "D:\\某处\\AzurPilot"
+
+AzurPilot 目录：优先 `--root`，没给就取环境变量 `AZURPILOT_ROOT`
+（代码里**不写死任何本机路径**）。
 退出码 0 = 全部通过。AzurPilot 没在跑时，第 4/5 组会标 SKIP 而不是失败。
 """
 
@@ -212,10 +215,16 @@ def mcp_roundtrip(module, base: str, key: str) -> tuple:
 
 def main() -> int:
     import argparse
+    import os
 
     parser = argparse.ArgumentParser(description="AzurRem 网关自测")
-    parser.add_argument("--root", default=r"D:\Tools\AzurPilot", help="AzurPilot 根目录")
+    parser.add_argument("--root", default=os.environ.get("AZURPILOT_ROOT", ""),
+                        help="AzurPilot 根目录（默认取环境变量 AZURPILOT_ROOT）")
     args = parser.parse_args()
+
+    if not args.root:
+        print("[X] 没指定 AzurPilot 目录。设环境变量 AZURPILOT_ROOT，或用 --root 传一个。")
+        return 2
 
     module = load_module()
     root = Path(args.root)

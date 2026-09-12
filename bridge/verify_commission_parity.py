@@ -13,17 +13,26 @@ avg 的取整方式不同、week 的起点算错），用户就会看到
 
 所以这个脚本把两边的输出拉出来逐字段比。数字对不上就是失败。
 
-用法（**必须用项目的 venv**，因为它要 import module.*）：
-    D:\\Tools\\AzurPilot\\.venv\\Scripts\\python.exe bridge\\verify_commission_parity.py
+用法（**必须用项目自己的 venv 跑**，因为它要 import module.*）：
+    "%AZURPILOT_ROOT%\\.venv\\Scripts\\python.exe" bridge\\verify_commission_parity.py
+
+AzurPilot 目录从环境变量 `AZURPILOT_ROOT` 取（代码里不写死本机路径）。
 """
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-PROJECT_ROOT = Path(r"D:\Tools\AzurPilot")
+PROJECT_ROOT = Path(os.environ["AZURPILOT_ROOT"]) if os.environ.get("AZURPILOT_ROOT") else None
+if PROJECT_ROOT is None or not PROJECT_ROOT.is_dir():
+    raise SystemExit(
+        "[X] 请先设环境变量 AZURPILOT_ROOT 指向本机 AzurPilot 目录，例如：\n"
+        '      setx AZURPILOT_ROOT "D:\\你的路径\\AzurPilot"\n'
+        "    这个脚本要 import 项目自己的 module.*，没有它就无从对拍。"
+    )
 
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -70,7 +79,7 @@ def main() -> int:
         )
     except Exception as exc:
         print(f"  [X] 导入项目原实现失败：{exc}")
-        print("      要用项目的 venv 跑：D:\\Tools\\AzurPilot\\.venv\\Scripts\\python.exe")
+        print("      要用项目的 venv 跑：\"%AZURPILOT_ROOT%\\.venv\\Scripts\\python.exe\"")
         return 1
 
     print("──── 常量对齐 ────")

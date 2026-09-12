@@ -23,9 +23,13 @@ REM          is raw ctypes / Shell_NotifyIconW inside mobile_bridge.py.
 REM          That means NO third-party packages are needed here: no
 REM          pystray, no Pillow, no six, and therefore no
 REM          --hidden-import / --collect-all / --copy-metadata entries.
-REM          If someone ever swaps that for pystray, the flags MUST be
-REM          added in BOTH this file and AzurRemBridge.spec, or the
-REM          build and the spec will quietly disagree.
+REM          If someone ever swaps that for pystray, add the flags to the
+REM          pyinstaller call at the bottom of this file.
+REM          Do NOT go looking for AzurRemBridge.spec to edit: it is a
+REM          generated artifact (--specpath + --noconfirm rewrite it on
+REM          every build) and it is gitignored -- it used to be committed,
+REM          and it carried the builder's absolute path (username included)
+REM          into the repo.
 REM
 REM  NOTE 1: keep the pyinstaller call on ONE line. A "^" continued
 REM          command is fragile in .bat and the failure mode is a
@@ -45,9 +49,11 @@ set "HERE=%~dp0"
 set "OUTDIR=%HERE%..\dist"
 set "ICON=%HERE%azurrem.ico"
 
-REM Use the pinned interpreter if it exists, otherwise whatever is on PATH.
-set "PY=D:\Tools\Python\python.exe"
-if not exist "%PY%" set "PY=python"
+REM Python interpreter: %AZURREM_PYTHON% if you set it, else whatever "python"
+REM resolves to on PATH. Deliberately NOT hard-coded to a specific drive --
+REM that would leak the builder's machine layout into the repo.
+set "PY=%AZURREM_PYTHON%"
+if not defined PY set "PY=python"
 
 echo.
 echo   Building %OUTDIR%\AzurRemBridge.exe
@@ -94,7 +100,7 @@ echo       "%PY%" "%HERE%gui_test.py"
 echo   Same widget self-test, but driving the REAL exe (tray round-trip cross-process):
 echo       "%PY%" "%HERE%tray_test_exe.py" --port 25565
 echo   Parity check of the ported ship-exp code (needs the project venv):
-echo       D:\Tools\AzurPilot\.venv\Scripts\python.exe "%HERE%verify_ship_exp_parity.py"
+echo       "%AZURPILOT_ROOT%\.venv\Scripts\python.exe" "%HERE%verify_ship_exp_parity.py"
 echo.
 endlocal
 exit /b 0
